@@ -1,0 +1,5 @@
+paper
+*.pdf
+*.pickle
+*.pth
+zilliz-cloud-AIC2026-username-password.txt
