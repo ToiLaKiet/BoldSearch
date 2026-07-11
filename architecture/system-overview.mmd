@@ -1,0 +1,26 @@
+flowchart LR
+  User[Challenge operator / participant] --> UI[Vite React UI]
+  UI --> API[Flask API routes]
+
+  subgraph Backend[Modular monolith backend]
+    API --> Retrieval[Retrieval use cases]
+    API --> Submission[Submission use cases]
+    Retrieval --> Catalog[Shot catalog repository]
+    Retrieval --> Scoring[Pure scoring and grouping policies]
+    Retrieval --> Encoder[Embedding encoder port]
+    Retrieval --> Store[Vector store port]
+    Submission --> Catalog
+  end
+
+  Catalog --> LocalJSON[(Sample shots.json)]
+  Encoder --> FGCLIP[FG-CLIP adapter]
+  Encoder --> BEIT3[BEiT-3 adapter]
+  Store --> Milvus[Milvus adapter]
+  Store --> Qdrant[Qdrant adapter]
+
+  subgraph Offline[Offline pipeline and benchmark]
+    Media[Videos and keyframes] --> Artifact[Embedding artifact + manifest]
+    Artifact --> Harness[Benchmark harness]
+    Harness --> Store
+    Harness --> Report[Benchmark report and ADR input]
+  end

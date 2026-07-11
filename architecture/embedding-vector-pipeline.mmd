@@ -1,0 +1,28 @@
+flowchart LR
+  subgraph Models["Current phase: embedding models"]
+    Media["Video / keyframes"] --> FG["FGClipEncoder"]
+    Media --> BEIT["Beit3Encoder"]
+    Text["Evaluation text queries"] --> FG
+    Text --> BEIT
+    FG --> Validate["Validate shape, finite values, L2 norm"]
+    BEIT --> Validate
+    Validate --> Artifact["Embedding artifact + manifest + checksum"]
+  end
+
+  subgraph ModelEval["End of current phase: offline model evaluation"]
+    Artifact --> Exact["Exact cosine retrieval"]
+    Qrels["VBS query set + qrels"] --> Exact
+    Exact --> Metrics["HitRate, MRR, Recall, nDCG"]
+    Metrics --> JSON["Canonical JSON report"]
+    JSON --> MLflow["MLflow tracking"]
+  end
+
+  subgraph Future["Later phase: vector database evaluation"]
+    Artifact -.-> Store["VectorStore contract"]
+    Store -.-> Milvus["Milvus adapter"]
+    Store -.-> Qdrant["Qdrant adapter"]
+  end
+
+  Config["Model, checkpoint, dataset, preprocessing, seed"] --> FG
+  Config --> BEIT
+  Config --> Exact

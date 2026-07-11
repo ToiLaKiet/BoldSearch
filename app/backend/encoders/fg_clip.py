@@ -3,9 +3,10 @@ from __future__ import annotations
 
 import numpy as np
 import torch
-import torch.nn.functional as F
 from PIL import Image
 from transformers import AutoImageProcessor, AutoModelForCausalLM, AutoTokenizer
+
+from encoders.normalization import l2_normalize
 
 _MODEL_ID = "qihoo360/fg-clip-large"
 # Pinned to avoid pulling untrusted remote code from a moving HEAD.
@@ -17,7 +18,7 @@ _MAX_TEXT_LENGTH = 77
 
 def _l2_normalize(tensor: torch.Tensor) -> torch.Tensor:
     """Return finite, float32 L2-normalized features."""
-    return F.normalize(tensor.float(), p=2, dim=-1, eps=1e-12)
+    return l2_normalize(tensor)
 
 
 class FGClipEncoder:
