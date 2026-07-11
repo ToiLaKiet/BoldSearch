@@ -20,18 +20,18 @@ config/embedding.yaml
   -> only then benchmark Milvus and Qdrant with that locked artifact
 ```
 
-`config/embedding.yaml` is the reviewable model catalog. An entry marked
-`candidate` is not runnable: it must first receive a dedicated adapter,
-contract tests and a real-model smoke test. DVC/R2 own file transfer and
-versioning; encoders only receive already-local asset paths.
+`config/embedding.yaml` contains only runnable choices and their runtime inputs.
+DVC/R2 own file transfer and versioning; encoders only receive already-local
+asset paths. Candidate models stay in this plan until they receive a dedicated
+adapter, contract tests and a real-model smoke test.
 
 ## Models in scope
 
 | Key | Status | Adapter | Dimension | Notes |
 | --- | --- | --- | --- | --- |
-| `fg_clip_large` | supported | `FGClipEncoder` | 768 | Hugging Face revision is pinned; uses remote model code. |
-| `beit3_base_itc` | supported | `Beit3Encoder` | 768 | Local DVC/R2 checkpoint; checksum must be recorded before artifact generation. |
-| `beit3_large_itc` | candidate | none yet | 1024 | Requires a separate large-model adapter and verification. |
+| `fg_clip_large` | `FGClipEncoder` | 768 | Supported; Hugging Face revision is pinned in the adapter. |
+| `beit3_base_itc` | `Beit3Encoder` | 768 | Supported; local DVC/R2 checkpoint checksum is required before artifact generation. |
+| `beit3_large_itc` | none yet | 1024 | Planned; requires a separate large-model adapter and verification. |
 
 Do not treat this as a list of every model in the ecosystem. It is the bounded
 set we are willing to evaluate in this project. Adding a model starts with an
@@ -41,9 +41,9 @@ explicit YAML candidate, followed by its adapter and tests.
 
 `FGClipEncoder` and `Beit3Encoder` are the model-runtime adapters. Their public
 behavior is only `encode_images()` and `encode_texts()`, each returning
-L2-normalized `float32` vectors. A YAML loader validates that the selected model
-is supported, then a small static bootstrap selects its known adapter; it does
-not dynamically import Python classes.
+L2-normalized `float32` vectors. The YAML loader uses Pydantic to validate the
+selected runtime inputs, then a small static bootstrap selects its known adapter;
+it does not dynamically import Python classes.
 
 No base encoder class, factory, Flask integration, or vector-store adapter is
 needed yet. If the artifact writer/evaluator needs one shared type, add a small

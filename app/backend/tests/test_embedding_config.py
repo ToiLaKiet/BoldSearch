@@ -6,7 +6,9 @@ import pytest
 
 from unittest.mock import patch
 
-from encoders.config import ConfigError, build_encoder, load_embedding_config
+from pydantic import ValidationError
+
+from encoders.config import build_encoder, load_embedding_config
 
 
 def _write_config(tmp_path: Path, contents: str) -> Path:
@@ -15,7 +17,7 @@ def _write_config(tmp_path: Path, contents: str) -> Path:
     return path
 
 
-def test_loads_selected_supported_model_and_its_local_assets(tmp_path: Path):
+def test_loads_selected_model_and_its_local_assets(tmp_path: Path):
     config = load_embedding_config(
         _write_config(
             tmp_path,
@@ -24,36 +26,34 @@ embedding:
   selected_model: beit3_base_itc
   models:
     beit3_base_itc:
-      status: supported
       adapter: beit3
-      assets:
-        checkpoint_path: models/beit3/base.pth
-        tokenizer_path: models/beit3/tokenizer.model
       dimension: 768
+      checkpoint_path: models/beit3/base.pth
+      tokenizer_path: models/beit3/tokenizer.model
 """,
         )
     )
 
-    assert config.selected.name == "beit3_base_itc"
+    assert config.selected_model == "beit3_base_itc"
     assert config.selected.adapter == "beit3"
-    assert config.selected.assets["checkpoint_path"] == "models/beit3/base.pth"
+    assert config.selected.checkpoint_path == "models/beit3/base.pth"
 
 
-def test_rejects_a_candidate_as_the_selected_model(tmp_path: Path):
+def test_rejects_beit3_without_a_tokenizer_path(tmp_path: Path):
     path = _write_config(
         tmp_path,
         """
 embedding:
-  selected_model: beit3_large_itc
+  selected_model: beit3_base_itc
   models:
-    beit3_large_itc:
-      status: candidate
+    beit3_base_itc:
       adapter: beit3
-      dimension: 1024
+      dimension: 768
+      checkpoint_path: models/beit3/base.pth
 """,
     )
 
-    with pytest.raises(ConfigError, match="not supported"):
+    with pytest.raises(ValidationError, match="tokenizer_path"):
         load_embedding_config(path)
 
 
@@ -67,10 +67,8 @@ embedding:
   device: cpu
   models:
     fg_clip_large:
-      status: supported
       adapter: fg_clip
       dimension: 768
-      assets: {}
 """,
         )
     )

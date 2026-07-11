@@ -1,90 +1,60 @@
-"""Load the explicit encoder selection from the embedding YAML file."""
+"""Load and validate the selected encoder from the embedding YAML file."""
 from __future__ import annotations
 
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import yaml
+from pydantic import BaseModel, ConfigDict, PositiveInt, model_validator
 
 
-class ConfigError(ValueError):
-    """Raised when an embedding configuration cannot safely select a model."""
+class ModelConfig(BaseModel):
+    """Runtime inputs needed to construct one supported encoder adapter."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    adapter: Literal["fg_clip", "beit3"]
+    dimension: PositiveInt
+    checkpoint_path: str | None = None
+    tokenizer_path: str | None = None
+
+    @model_validator(mode="after")
+    def require_local_beit3_assets(self) -> ModelConfig:
+        """Require the two DVC-managed paths needed by the BEiT-3 adapter."""
+        if self.adapter == "beit3" and not (
+            self.checkpoint_path and self.tokenizer_path
+        ):
+            raise ValueError("BEiT-3 requires checkpoint_path and tokenizer_path")
+        return self
 
 
-@dataclass(frozen=True)
-class ModelConfig:
-    """A configured model entry and its locally resolved asset locations."""
+class EmbeddingConfig(BaseModel):
+    """Validated embedding runtime settings selected from the YAML file."""
 
-    name: str
-    status: str
-    adapter: str
-    dimension: int
-    assets: dict[str, str]
+    model_config = ConfigDict(extra="forbid")
 
+    selected_model: str
+    device: Literal["cpu", "cuda", "mps"] | None = None
+    models: dict[str, ModelConfig]
 
-@dataclass(frozen=True)
-class EmbeddingConfig:
-    """The selected, runnable encoder configuration."""
+    @model_validator(mode="after")
+    def require_declared_selection(self) -> EmbeddingConfig:
+        """Reject selections that do not name a declared model entry."""
+        if self.selected_model not in self.models:
+            raise ValueError("selected_model must name an entry in models")
+        return self
 
-    device: str | None
-    selected: ModelConfig
+    @property
+    def selected(self) -> ModelConfig:
+        """Return the one model selected for this embedding run."""
+        return self.models[self.selected_model]
 
 
 def load_embedding_config(path: str | Path) -> EmbeddingConfig:
-    """Load and validate one supported model selection from a YAML file."""
-    source = Path(path)
-    with source.open(encoding="utf-8") as stream:
+    """Read YAML and delegate schema and semantic validation to Pydantic."""
+    with Path(path).open(encoding="utf-8") as stream:
         document = yaml.safe_load(stream)
-
-    if not isinstance(document, dict) or not isinstance(document.get("embedding"), dict):
-        raise ConfigError("configuration must contain an 'embedding' mapping")
-
-    embedding = document["embedding"]
-    selected_name = embedding.get("selected_model")
-    models = embedding.get("models")
-    if not isinstance(selected_name, str) or not isinstance(models, dict):
-        raise ConfigError("embedding.selected_model and embedding.models are required")
-
-    raw_model = models.get(selected_name)
-    if not isinstance(raw_model, dict):
-        raise ConfigError(f"selected model '{selected_name}' is not declared")
-    if raw_model.get("status") != "supported":
-        raise ConfigError(f"selected model '{selected_name}' is not supported")
-
-    adapter = raw_model.get("adapter")
-    dimension = raw_model.get("dimension")
-    assets = raw_model.get("assets", {})
-    if adapter not in {"fg_clip", "beit3"}:
-        raise ConfigError(f"selected model '{selected_name}' has an unknown adapter")
-    if not isinstance(dimension, int) or dimension <= 0:
-        raise ConfigError(f"selected model '{selected_name}' needs a positive dimension")
-    if not isinstance(assets, dict) or not all(
-        isinstance(key, str) and isinstance(value, str) for key, value in assets.items()
-    ):
-        raise ConfigError(f"selected model '{selected_name}' has invalid assets")
-    required_assets = {
-        "fg_clip": set(),
-        "beit3": {"checkpoint_path", "tokenizer_path"},
-    }[adapter]
-    if required_assets - assets.keys():
-        missing = ", ".join(sorted(required_assets - assets.keys()))
-        raise ConfigError(f"selected model '{selected_name}' is missing assets: {missing}")
-
-    device = embedding.get("device")
-    if device is not None and device not in {"cpu", "cuda", "mps"}:
-        raise ConfigError("embedding.device must be cpu, cuda, mps, or omitted")
-
-    return EmbeddingConfig(
-        device=device,
-        selected=ModelConfig(
-            name=selected_name,
-            status="supported",
-            adapter=adapter,
-            dimension=dimension,
-            assets=assets,
-        ),
-    )
+    return EmbeddingConfig.model_validate(document["embedding"])
 
 
 def build_encoder(config: EmbeddingConfig) -> Any:
@@ -94,13 +64,10 @@ def build_encoder(config: EmbeddingConfig) -> Any:
 
         return FGClipEncoder(device=config.device)
 
-    if config.selected.adapter == "beit3":
-        from encoders.beit3 import Beit3Encoder
+    from encoders.beit3 import Beit3Encoder
 
-        return Beit3Encoder(
-            checkpoint_path=config.selected.assets["checkpoint_path"],
-            tokenizer_path=config.selected.assets["tokenizer_path"],
-            device=config.device,
-        )
-
-    raise ConfigError(f"selected adapter '{config.selected.adapter}' is not runnable")
+    return Beit3Encoder(
+        checkpoint_path=config.selected.checkpoint_path,
+        tokenizer_path=config.selected.tokenizer_path,
+        device=config.device,
+    )
