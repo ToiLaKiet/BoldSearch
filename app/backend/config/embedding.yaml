@@ -1,0 +1,32 @@
+# This is a catalog for models in the current evaluation scope.
+# Only entries with status: supported may be selected. Candidate entries are
+# intentionally visible for review but need an adapter and contract tests first.
+embedding:
+  selected_model: beit3_base_itc
+  device: cpu
+
+  models:
+    fg_clip_large:
+      status: supported
+      adapter: fg_clip
+      dimension: 768
+      source: huggingface:qihoo360/fg-clip-large
+      revision: 5a8f0f23b5a06dc92310e907599b2a0c2d58fe6f
+      assets: {}
+
+    beit3_base_itc:
+      status: supported
+      adapter: beit3
+      dimension: 768
+      source: dvc:r2/models/beit3/beit3_base_itc_patch16_224.pth
+      revision: pending-checksum
+      assets:
+        checkpoint_path: models/beit3/beit3_base_itc_patch16_224.pth
+        tokenizer_path: models/beit3/sentencepiece.bpe.model
+
+    beit3_large_itc:
+      status: candidate
+      adapter: beit3
+      dimension: 1024
+      source: dvc:r2/models/beit3/beit3_large_itc_patch16_224.pth
+      reason: Requires a large-model adapter and the same contract/smoke tests.

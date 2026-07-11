@@ -11,7 +11,7 @@ Project: HCM AI Challenge Pipeline 2026 / BoldSearch
 | Current search is lexical/object/color/temporal over sample `shots.json`. | Verified | `app/backend/app.py`, `app/backend/data/shots.json` |
 | Embedding/vector-store pipeline is planned but not production-implemented. | Verified | dependency inventory and `docs/technical/00-embedding-vector-store-evaluation.md` |
 | Final vector-store provider should be chosen by benchmark, not preference. | Inferred project decision | `docs/technical/00-embedding-vector-store-evaluation.md` |
-| BEiT-3 checkpoint, dataset scale, SLO, and benchmark weights remain open. | Unresolved | no approved config or ADR in repo |
+| BEiT-3 checkpoint checksum, dataset scale, SLO, and benchmark weights remain open. | Unresolved | `app/backend/config/embedding.yaml`; no ADR yet |
 
 ## Architecture style
 
@@ -43,7 +43,7 @@ Challenge operator / participant
 |---|---|---|---|
 | `shot_catalog` | Load and validate shot/keyframe metadata. | JSON file loaded directly by Flask. | Repository module with typed records and fixture-backed tests. |
 | `retrieval` | Validate query, score/search candidates, group keyframes to shots, shape results. | Inline functions in `app.py`. | Pure scoring plus application use case. |
-| `embedding` | Encode text/images with FG-CLIP or BEiT-3 and write immutable artifacts. | Exploratory notebook only. | Encoder adapters plus artifact manifest/checksum validation. |
+| `embedding` | Encode text/images with FG-CLIP or BEiT-3 and write immutable artifacts. | Two encoder adapters plus YAML selection. | Artifact manifest/checksum validation and exact offline evaluation. |
 | `vector_store` | Store/search vectors through a provider-neutral contract. | Not implemented. | Milvus and Qdrant adapters behind shared contract tests. |
 | `benchmark` | Compare providers, index settings, and models reproducibly. | Planning doc only. | Harness with fixed manifests, query labels, raw run metadata, and reports. |
 | `submission` | Prepare challenge answer payloads and audit accepted submissions. | `/api/submit` returns a local payload. | Submission use case with stable payload contract and audit record. |
@@ -73,9 +73,9 @@ Challenge operator / participant
 2. Encode keyframes with a pinned model/checkpoint.
 3. Validate vector dimension, finite values, dtype, and L2 norm.
 4. Write an immutable artifact with manifest and checksum.
-5. Ingest the same artifact into Milvus and Qdrant through the same contract.
-6. Run exact-search correctness, ANN benchmark, resource measurement, and restart/backup drills.
-7. Record the benchmark report and write an ADR before choosing a production provider.
+5. Run exact cosine evaluation and select one model baseline.
+6. In a later phase, ingest that locked artifact into Milvus and Qdrant through the same contract.
+7. Run exact-search correctness and ANN benchmarks, then record an ADR before choosing a provider.
 
 Detailed vector-store design lives in `docs/technical/00-embedding-vector-store-evaluation.md`.
 
