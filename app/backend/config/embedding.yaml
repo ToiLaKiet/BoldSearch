@@ -1,14 +1,8 @@
 embedding:
-  selected_model: beit3_base_itc
   device: cpu
-
-  models:
-    fg_clip_large:
-      adapter: fg_clip
-      dimension: 768
-
-    beit3_base_itc:
-      adapter: beit3
-      dimension: 768
-      checkpoint_path: models/beit3/beit3_base_itc_patch16_224.pth
-      tokenizer_path: models/beit3/sentencepiece.bpe.model
+  model:
+    name: beit3_base_itc
+    adapter: beit3
+    dimension: 768
+    checkpoint_path: models/beit3/beit3_base_itc_patch16_224.pth
+    tokenizer_path: models/beit3/sentencepiece.bpe.model

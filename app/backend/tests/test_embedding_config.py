@@ -23,20 +23,19 @@ def test_loads_selected_model_and_its_local_assets(tmp_path: Path):
             tmp_path,
             """
 embedding:
-  selected_model: beit3_base_itc
-  models:
-    beit3_base_itc:
-      adapter: beit3
-      dimension: 768
-      checkpoint_path: models/beit3/base.pth
-      tokenizer_path: models/beit3/tokenizer.model
+  model:
+    name: beit3_base_itc
+    adapter: beit3
+    dimension: 768
+    checkpoint_path: models/beit3/base.pth
+    tokenizer_path: models/beit3/tokenizer.model
 """,
         )
     )
 
-    assert config.selected_model == "beit3_base_itc"
-    assert config.selected.adapter == "beit3"
-    assert config.selected.checkpoint_path == "models/beit3/base.pth"
+    assert config.model.name == "beit3_base_itc"
+    assert config.model.adapter == "beit3"
+    assert config.model.checkpoint_path == "models/beit3/base.pth"
 
 
 def test_rejects_beit3_without_a_tokenizer_path(tmp_path: Path):
@@ -44,12 +43,11 @@ def test_rejects_beit3_without_a_tokenizer_path(tmp_path: Path):
         tmp_path,
         """
 embedding:
-  selected_model: beit3_base_itc
-  models:
-    beit3_base_itc:
-      adapter: beit3
-      dimension: 768
-      checkpoint_path: models/beit3/base.pth
+  model:
+    name: beit3_base_itc
+    adapter: beit3
+    dimension: 768
+    checkpoint_path: models/beit3/base.pth
 """,
     )
 
@@ -63,12 +61,11 @@ def test_builds_the_selected_static_adapter(tmp_path: Path):
             tmp_path,
             """
 embedding:
-  selected_model: fg_clip_large
   device: cpu
-  models:
-    fg_clip_large:
-      adapter: fg_clip
-      dimension: 768
+  model:
+    name: fg_clip_large
+    adapter: fg_clip
+    dimension: 768
 """,
         )
     )
