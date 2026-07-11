@@ -3,3 +3,51 @@ paper
 *.pickle
 *.pth
 zilliz-cloud-AIC2026-username-password.txt
+
+# Local OS/editor noise
+.DS_Store
+.vscode/
+.idea/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Node / frontend
+node_modules/
+dist/
+build/
+.npm-cache/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+*credentials*.txt
+*secret*.txt
+*token*.txt
+zilliz-cloud-AIC2026-username-password.txt
+
+# Data, model, and benchmark artifacts
+*.pdf
+*.pickle
+*.pkl
+*.pth
+*.pt
+*.onnx
+*.faiss
+*.sqlite
+*.db
+artifacts/
+data/raw/
+data/processed/
+benchmark-reports/
+vector-db-data/
+
+# Local code indexes and generated caches
+.codegraph/
