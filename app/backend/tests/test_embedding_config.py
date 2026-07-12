@@ -8,7 +8,8 @@ from unittest.mock import patch
 
 from pydantic import ValidationError
 
-from encoders.config import build_encoder, load_embedding_config
+from encoders.config import load_embedding_config
+from encoders.loader import build_encoder
 
 
 def _write_config(tmp_path: Path, contents: str) -> Path:
@@ -25,7 +26,7 @@ def test_loads_selected_model_and_its_local_assets(tmp_path: Path):
 embedding:
   model:
     name: beit3_base_itc
-    adapter: beit3
+    type: beit3
     dimension: 768
     checkpoint_path: models/beit3/base.pth
     tokenizer_path: models/beit3/tokenizer.model
@@ -34,7 +35,7 @@ embedding:
     )
 
     assert config.model.name == "beit3_base_itc"
-    assert config.model.adapter == "beit3"
+    assert config.model.type == "beit3"
     assert config.model.checkpoint_path == "models/beit3/base.pth"
 
 
@@ -45,7 +46,7 @@ def test_rejects_beit3_without_a_tokenizer_path(tmp_path: Path):
 embedding:
   model:
     name: beit3_base_itc
-    adapter: beit3
+    type: beit3
     dimension: 768
     checkpoint_path: models/beit3/base.pth
 """,
@@ -64,7 +65,7 @@ embedding:
   device: cpu
   model:
     name: fg_clip_large
-    adapter: fg_clip
+    type: fg_clip
     dimension: 768
 """,
         )

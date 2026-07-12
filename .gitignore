@@ -43,6 +43,7 @@ zilliz-cloud-AIC2026-username-password.txt
 *.faiss
 *.sqlite
 *.db
+models/
 artifacts/
 data/raw/
 data/processed/

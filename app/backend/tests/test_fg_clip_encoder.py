@@ -4,7 +4,7 @@ Fakes replace AutoModelForCausalLM / AutoTokenizer / AutoImageProcessor at the
 transformers seam — the real model is never downloaded. Normalization and
 batching are exercised with real torch ops.
 
-TDD cycle applied to _l2_normalize (core normalization kernel):
+TDD cycle applied to l2_normalize (core normalization kernel):
   Red  — tests written first; function not yet present → ImportError/NameError
   Green — minimal implementation added to fg_clip.py
   Refactor — docstring and clamp constant clarified; tests stay green
@@ -16,42 +16,43 @@ import pytest
 import torch
 from unittest.mock import MagicMock, patch
 
-from encoders.fg_clip import _l2_normalize, FGClipEncoder, _MODEL_REVISION
+from encoders.fg_clip import FGClipEncoder, _MODEL_REVISION
+from encoders.normalization import l2_normalize
 
 DIM = 768
 
 
 # ---------------------------------------------------------------------------
-# _l2_normalize — pure-function TDD cycle
+# l2_normalize — pure-function TDD cycle
 # ---------------------------------------------------------------------------
 
 class TestL2Normalize:
     def test_unit_vector_passes_through(self):
         v = torch.tensor([[1.0, 0.0, 0.0]])
-        assert torch.allclose(_l2_normalize(v), v)
+        assert torch.allclose(l2_normalize(v), v)
 
     def test_scaled_vector_becomes_unit(self):
         # 3-4-5 right triangle: norm = 5
         v = torch.tensor([[3.0, 4.0]])
-        out = _l2_normalize(v)
+        out = l2_normalize(v)
         assert abs(out.norm(p=2, dim=-1).item() - 1.0) < 1e-6
 
     def test_zero_vector_stays_zero(self):
         v = torch.zeros(1, 4, dtype=torch.float16)
-        out = _l2_normalize(v)
+        out = l2_normalize(v)
         assert torch.isfinite(out).all()
         assert torch.all(out == 0.0)
 
     def test_batch_all_rows_unit_norm(self):
         torch.manual_seed(0)
         v = torch.randn(16, DIM) * 7.3
-        out = _l2_normalize(v)
+        out = l2_normalize(v)
         norms = out.norm(p=2, dim=-1)
         assert torch.allclose(norms, torch.ones(16), atol=1e-5)
 
     def test_float16_input_returns_finite_float32_unit_vectors(self):
         v = torch.tensor([[3.0, 4.0]], dtype=torch.float16)
-        out = _l2_normalize(v)
+        out = l2_normalize(v)
         assert out.dtype == torch.float32
         assert torch.isfinite(out).all()
         assert torch.allclose(out.norm(p=2, dim=-1), torch.ones(1))

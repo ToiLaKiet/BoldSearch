@@ -16,11 +16,6 @@ _EMBEDDING_DIM = 768
 _MAX_TEXT_LENGTH = 77
 
 
-def _l2_normalize(tensor: torch.Tensor) -> torch.Tensor:
-    """Return finite, float32 L2-normalized features."""
-    return l2_normalize(tensor)
-
-
 class FGClipEncoder:
     """Encodes images and texts using FG-CLIP (qihoo360/fg-clip-large).
 
@@ -73,7 +68,7 @@ class FGClipEncoder:
 
         with torch.no_grad():
             features = self._model.get_image_features(pixel_values)
-            features = _l2_normalize(features)
+            features = l2_normalize(features)
 
         return features.cpu().float().numpy()
 
@@ -104,6 +99,6 @@ class FGClipEncoder:
             features = self._model.get_text_features(
                 input_ids, walk_short_pos=walk_short_pos
             )
-            features = _l2_normalize(features)
+            features = l2_normalize(features)
 
         return features.cpu().float().numpy()
