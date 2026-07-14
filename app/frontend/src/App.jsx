@@ -64,6 +64,7 @@ export default function App() {
   const [error, setError] = useState('');
   const [submission, setSubmission] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [theme, setTheme] = useState('dark');
   
   // UX States
   const [isDragging, setIsDragging] = useState(false);
@@ -90,6 +91,10 @@ export default function App() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+  }, [theme]);
 
   useEffect(() => {
     async function loadTasks() {
@@ -491,6 +496,16 @@ export default function App() {
           </div>
 
           <div className="topbar-right">
+            <button
+              type="button"
+              className={`theme-switch ${theme}`}
+              onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+              title="Toggle theme"
+            >
+              <span className="theme-switch-thumb">
+                {theme === 'dark' ? '🌙' : '☀️'}
+              </span>
+            </button>
             <span className="result-count">
               {results.length} result{results.length !== 1 ? 's' : ''}
             </span>
