@@ -2,7 +2,7 @@
 BoldSearcher — FastAPI entry point.
 
 Registers all module routers under the /api prefix.
-Run with:  uvicorn main:app --host 0.0.0.0 --port 5001 --reload
+Run with:  uv run python main.py   (HOST/PORT come from .env; see app_config.py)
 """
 
 from __future__ import annotations
@@ -10,7 +10,7 @@ from __future__ import annotations
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from core.config import API_PREFIX, SYSTEM_NAME
+from app_config import API_PREFIX, SYSTEM_NAME, app_config
 
 # ── Module routers ───────────────────────────────────────────────────
 from search.router import router as search_router
@@ -66,6 +66,5 @@ app = create_app()
 
 if __name__ == "__main__":
     import uvicorn
-    from core.config import HOST, PORT
 
-    uvicorn.run("main:app", host=HOST, port=PORT, reload=True)
+    uvicorn.run("main:app", host=app_config.HOST, port=app_config.PORT, reload=True)

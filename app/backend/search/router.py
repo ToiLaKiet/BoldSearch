@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
 
-from core.config import SYSTEM_NAME
+from app_config import SYSTEM_NAME
 from search import schema, service
 
 router = APIRouter(prefix="/search", tags=["search"])

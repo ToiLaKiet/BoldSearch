@@ -12,9 +12,9 @@ import math
 import re
 from typing import Any, Dict, List, Tuple
 
-from core.config import DATA_DIR
+from app_config import app_config
 
-SHOTS_PATH = DATA_DIR / "shots.json"
+SHOTS_PATH = app_config.DATA_DIR / "shots.json"
 
 
 # ── Data loading ─────────────────────────────────────────────────────
