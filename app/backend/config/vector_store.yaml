@@ -3,16 +3,5 @@ vector_store:
   collection: keyframes
   metric: cosine
 
-# No `url` here on purpose: it changes per machine, so it comes from .env --
-# QDRANT_URL or MILVUS_URI, whichever matches the `type` above. Everything in
-# this file is a design decision and belongs in version control.
-#
-# --- Examples ---
-# Milvus (url then comes from MILVUS_URI):
-#   vector_store:
-#     type: milvus
-#     collection: keyframes
-#     metric: cosine
-#
-# Benchmarking both providers: keep one yaml per provider and point
-# VECTOR_STORE_CONFIG_PATH at the one you are running. Both urls stay in .env.
+# url comes from .env (QDRANT_URL / MILVUS_URI), not here.
+# One yaml per provider; VECTOR_STORE_CONFIG_PATH picks which one runs.

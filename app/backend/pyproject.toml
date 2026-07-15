@@ -21,13 +21,10 @@ dependencies = [
 ]
 
 [tool.uv]
-# This repo is an application, not an installable library: nothing imports
-# `boldsearch` as a package, so uv must not try to build one.
+# An app, not a library: nothing imports `boldsearch`, so uv must not build it.
 package = false
 
 [tool.pytest.ini_options]
-# Replaces the sys.path hack that used to live in conftest.py, so
-# `from encoders.fg_clip import ...` resolves. Paths are relative to this file.
 pythonpath = ["."]
 testpaths = ["tests"]
 
