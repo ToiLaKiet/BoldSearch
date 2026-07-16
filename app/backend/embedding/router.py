@@ -1,5 +1,5 @@
 """
-Embedding router — CLIP/FG-CLIP encoding, Milvus indexing, and similarity search.
+Embedding router for encoding, vector indexing, and similarity search.
 
 Prefix: /api/embedding
 """
@@ -44,9 +44,9 @@ async def encode_text(body: schema.EncodeTextRequest):
 @router.post("/search", response_model=schema.SimilaritySearchResponse)
 async def similarity_search(body: schema.SimilaritySearchRequest):
     """
-    Search the Milvus vector index for the most similar keyframes.
+    Search the configured vector store for the most similar keyframes.
 
-    TODO: Connect to Milvus and perform ANN search.
+    TODO: Connect the configured encoder and VectorStore.
     """
     return schema.SimilaritySearchResponse(
         query_model=body.model,
@@ -58,11 +58,11 @@ async def similarity_search(body: schema.SimilaritySearchRequest):
 @router.post("/index", response_model=schema.IndexResponse)
 async def index_video(body: schema.IndexRequest):
     """
-    Index all keyframes of a video into Milvus.
+    Index all keyframes of a video into the configured vector store.
 
     Includes optional deduplication of near-duplicate keyframes (Task #10 — Long).
 
-    TODO: Implement keyframe extraction → dedup → encoding → Milvus upsert.
+    TODO: Implement keyframe extraction → dedup → encoding → ingest.
     """
     return schema.IndexResponse(
         video_id=body.video_id,

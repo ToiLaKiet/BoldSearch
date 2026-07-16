@@ -1,178 +1,112 @@
-# BoldSearcher Backend
+# BoldSearch backend
 
-Backend API cho hệ thống — xây dựng bằng **FastAPI** với kiến trúc modular.
+FastAPI backend for shot retrieval and the in-progress multimodal pipeline.
 
-## Cấu trúc thư mục
-
-```text
-backend/
-├── main.py                          # Entry point — khởi tạo app, đăng ký routers
-├── app_config.py                    # Đọc .env + hằng số chung (SYSTEM_NAME, API_PREFIX)
-├── search/                          # Module tìm kiếm shot
-│   ├── __init__.py
-│   ├── router.py                    # Endpoints: tasks, shots, query, submit
-│   ├── schema.py                    # Pydantic models cho request/response
-│   └── service.py                   # Logic chấm điểm, tokenize, load data
-├── ocr/                             # Module OCR (PaddleOCR)
-│   ├── __init__.py
-│   ├── router.py                    # POST /api/ocr/extract
-│   └── schema.py                    # OcrRequest, OcrBox, OcrResponse
-├── asr/                             # Module ASR (Speech-to-Text)
-│   ├── __init__.py
-│   ├── router.py                    # POST /api/asr/transcribe
-│   └── schema.py                    # AsrRequest, TranscriptSegment, AsrResponse
-├── object_detection/                # Module Object & Color Detection
-│   ├── __init__.py
-│   ├── router.py                    # POST /api/object-detection/detect
-│   └── schema.py                    # DetectionRequest, DetectedObject, DetectionResponse
-├── embedding/                       # Module Embedding (FG-CLIP + Milvus)
-│   ├── __init__.py
-│   ├── router.py                    # encode-image, encode-text, search, index
-│   └── schema.py                    # Vector encoding + similarity search schemas
-├── data/
-│   └── shots.json                   # Dữ liệu mẫu (8 shots)
-├── config/                          # Quyết định thiết kế: model, vector store
-│   ├── embedding.yaml               # Encoder nào, dimension, checkpoint
-│   └── vector_store.yaml            # Provider nào, collection, metric
-├── .env.example                     # Thứ đổi theo máy: HOST/PORT, url provider
-├── pyproject.toml                   # Dependencies + cấu hình pytest
-└── uv.lock                          # Khoá version — đừng sửa tay
-```
-
-Ranh giới config: `.env` giữ thứ đổi theo máy, `config/*.yaml` giữ quyết định
-thiết kế (review được trong PR), `app_config.py` là nơi duy nhất đọc env.
-
-Dependencies khai ở `pyproject.toml`, khoá bởi `uv.lock` — cả hai nằm cùng thư mục này.
-
-## Cài đặt & Chạy
+## Setup
 
 ```bash
-cd app/backend
-uv sync                              # dựng .venv từ uv.lock
+uv sync
+cp .env.example .env  # optional
 uv run python main.py
 ```
 
-- API server: `http://localhost:8000`
-- Swagger UI (tài liệu API tự động): `http://localhost:8000/docs`
+- API: `http://localhost:8000`
+- Swagger UI: `http://localhost:8000/docs`
+- Tests: `uv run pytest`
 
-## API Endpoints
+Use `uv add <package>` to change dependencies. `pyproject.toml` is the declared
+dependency set and `uv.lock` is the generated lock file.
 
-### System
+## Module ownership
 
-| Method | Endpoint | Mô tả |
-|--------|----------|-------|
-| GET | `/api/health` | Health check |
+```text
+backend/
+├── main.py               # FastAPI assembly and process lifecycle
+├── app_config.py         # merge environment settings with YAML decisions
+├── search/               # working sample-data search and submission routes
+├── embedding/            # placeholder HTTP contracts
+├── ocr/                  # placeholder HTTP contracts
+├── asr/                  # placeholder HTTP contracts
+├── object_detection/     # placeholder HTTP contracts
+├── encoders/             # model-runtime adapters and selection
+├── vector_store/         # neutral schemas, contract, Qdrant/Milvus adapters
+├── config/               # reviewed model and vector-store decisions
+├── data/                 # sample shot catalogue
+└── tests/                # unit, lifecycle, and provider contract tests
+```
 
-### Search (`/api/search/...`)
+For HTTP features, `schema.py` owns request/response contracts, `router.py` owns
+HTTP translation, and `service.py` owns reusable application or pure business
+logic when that logic exists. Do not create empty layers just to match this
+shape.
 
-| Method | Endpoint | Mô tả |
-|--------|----------|-------|
-| GET | `/api/search/tasks` | Danh sách task types (KIS, VKIS) |
-| GET | `/api/search/shots` | Toàn bộ shots trong catalogue |
-| POST | `/api/search/query` | Tìm kiếm shots theo query đa phương thức |
-| POST | `/api/search/submit` | Nộp shot đã chọn làm kết quả |
+Infrastructure adapters such as `encoders/` and `vector_store/` must not import
+FastAPI. Their models describe internal method inputs/outputs; feature schemas
+describe the external HTTP contract.
 
-### OCR (`/api/ocr/...`)
+## Configuration
 
-| Method | Endpoint | Mô tả |
-|--------|----------|-------|
-| POST | `/api/ocr/extract` | Trích xuất text từ frame/ảnh |
+`AppConfig` is the runtime settings object. It merges two sources:
 
-### ASR (`/api/asr/...`)
+| Source | Owns |
+|---|---|
+| Environment or `.env` | machine/deployment values such as host, port, Qdrant URL, and Milvus URI |
+| `config/*.yaml` | reviewed project decisions such as provider, collection, model, and metric |
 
-| Method | Endpoint | Mô tả |
-|--------|----------|-------|
-| POST | `/api/asr/transcribe` | Chuyển audio thành text |
+Provider URLs must not be added to YAML. Vector metric remains a provisioning
+and benchmark decision until runtime code has a real consumer for it.
 
-### Object Detection (`/api/object-detection/...`)
+## Vector-store lifecycle
 
-| Method | Endpoint | Mô tả |
-|--------|----------|-------|
-| POST | `/api/object-detection/detect` | Nhận diện vật thể + màu sắc chủ đạo |
+`main.lifespan` selects the configured provider, creates one client and one
+`VectorStore` adapter per FastAPI worker, assigns it to
+`app.state.vector_store`, and closes the client at shutdown.
 
-### Embedding (`/api/embedding/...`)
-
-| Method | Endpoint | Mô tả |
-|--------|----------|-------|
-| POST | `/api/embedding/encode-image` | Encode ảnh/keyframe thành vector |
-| POST | `/api/embedding/encode-text` | Encode text query thành vector |
-| POST | `/api/embedding/search` | Tìm kiếm tương tự trên Milvus |
-| POST | `/api/embedding/index` | Index keyframes của video vào Milvus |
-
-## Cách thêm logic vào module
-
-Mỗi module placeholder đã có sẵn `router.py` (endpoint) và `schema.py` (input/output format). Để tích hợp model AI:
-
-### Bước 1 — Tạo `service.py`
+The contract intentionally contains only current behavior:
 
 ```python
-# Ví dụ: ocr/service.py
-from paddleocr import PaddleOCR
-
-ocr_model = PaddleOCR(use_angle_cls=True, lang='en')
-
-def extract_text(image_path: str):
-    results = ocr_model.ocr(image_path)
-    # Xử lý kết quả, trả về theo format OcrResponse
-    ...
+class VectorStore(Protocol):
+    def search(self, vector: Sequence[float], limit: int) -> list[SearchHit]: ...
+    def ingest(self, points: Sequence[VectorPoint]) -> None: ...
 ```
 
-### Bước 2 — Import vào `router.py`
+Both Qdrant and Milvus implement this contract. Provider SDK response shapes
+are normalized to the schemas in `vector_store/schemas.py`; consumers should
+only see `VectorPoint`, `SearchHit`, and their neutral fields.
 
-```python
-# ocr/router.py — chỉ cần sửa hàm endpoint
-from ocr import service
+Current boundaries:
 
-@router.post("/extract", response_model=schema.OcrResponse)
-async def extract_text(body: schema.OcrRequest):
-    result = service.extract_text(body.image_url)
-    return result
-```
+- The shared store is initialized but no endpoint calls `search()` or
+  `ingest()` yet.
+- Collections must already exist. Runtime code does not create, recreate, or
+  drop them.
+- Ingest is one application batch, not a GPU/multi-batch orchestration layer.
+- Milvus calls `flush()` after ingest so the next request observes the write
+  under the tested default-consistency baseline.
+- Search/ingest-specific ports should only be split when separate consumers
+  actually need narrower dependencies.
 
-**Không cần sửa `main.py`** hay bất kỳ file nào bên ngoài module.
+Provider behavior is checked through the same contract suite in
+`tests/contract/test_vector_store.py`; lifespan ownership and cleanup are checked
+in `tests/test_main.py`.
 
-### Bước 3 — Thêm dependencies
+## Routes
 
-Dùng `uv add` ở thư mục này — nó tự cập nhật `pyproject.toml` và `uv.lock`.
-Đừng sửa tay `uv.lock`:
+| Method | Path | State |
+|---|---|---|
+| `GET` | `/api/health` | working |
+| `GET` | `/api/search/tasks` | working |
+| `GET` | `/api/search/shots` | working |
+| `POST` | `/api/search/query` | working against sample JSON |
+| `POST` | `/api/search/submit` | working locally |
+| `POST` | `/api/ocr/extract` | placeholder |
+| `POST` | `/api/asr/transcribe` | placeholder |
+| `POST` | `/api/object-detection/detect` | placeholder |
+| `POST` | `/api/embedding/encode-image` | placeholder |
+| `POST` | `/api/embedding/encode-text` | placeholder |
+| `POST` | `/api/embedding/search` | placeholder |
+| `POST` | `/api/embedding/index` | placeholder |
 
-```bash
-uv add 'paddleocr==2.9.1' 'paddlepaddle==3.1.0'
-```
-
-## Cách thêm module mới
-
-1. Tạo thư mục mới (ví dụ `scene_classification/`)
-2. Tạo `__init__.py`, `schema.py`, `router.py`
-3. Đăng ký router trong `main.py`:
-
-```python
-from scene_classification.router import router as scene_router
-app.include_router(scene_router, prefix=API_PREFIX)
-```
-
-## Cách tắt module
-
-Comment 1 dòng trong `main.py`:
-
-```python
-# app.include_router(ocr_router, prefix=API_PREFIX)  # Tạm tắt OCR
-```
-
-## Tech Stack
-
-Nguồn chính xác là `pyproject.toml` + `uv.lock`; bảng này chỉ để tham khảo nhanh.
-
-| Component | Version |
-|-----------|---------|
-| Python | 3.13+ |
-| FastAPI | 0.115.12 |
-| Uvicorn | 0.34.3 |
-| Pydantic | 2.13.4 |
-| pydantic-settings | 2.7.0 |
-
-## Ghi chú
-
-- Frontend (Vite) proxy `/api` đến `http://127.0.0.1:8000` — xem `frontend/vite.config.js`
-- Swagger UI tại `/docs` tự động sinh tài liệu từ schema + docstring
-- Tất cả response đều có validation qua Pydantic — sai format sẽ trả 422 kèm chi tiết lỗi
+When a placeholder becomes real, construct long-lived model/database resources
+in lifespan and pass them to the consumer. Keep request validation and response
+mapping in the router; keep provider-specific translation inside its adapter.

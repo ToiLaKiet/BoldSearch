@@ -1,8 +1,8 @@
 """
 Pydantic schemas for the Embedding module.
 
-Models: FG-CLIP, BERT-3
-Vector DB: Milvus
+Models: FG-CLIP, BEiT-3
+Vector store: configured provider
 """
 
 from __future__ import annotations

@@ -1,46 +1,62 @@
-# BoldSearch — HCM AI Challenge Pipeline 2026
+# BoldSearch
 
-BoldSearch is the working repository for an HCM AI Challenge 2026 video retrieval pipeline. The current app is a prototype named **BoldSearcher**: a Flask API and Vite React UI for Known Item Search (KIS) and Visual Known Item Search (VKIS) over sample shot metadata.
+BoldSearch is the HCM AI Challenge 2026 video-retrieval workspace. The current
+prototype combines a FastAPI backend and a Vite React UI for Known Item Search
+(KIS) and Visual Known Item Search (VKIS).
 
-## Current baseline
+## Current state
 
-Verified on 2026-07-11:
+- Lexical, object, color, and temporal search runs against sample `shots.json`.
+- OCR, ASR, object detection, and embedding HTTP routes are placeholders.
+- Qdrant and Milvus implement one provider-neutral `VectorStore` contract for
+  search and single-batch ingest.
+- FastAPI lifespan opens the configured vector-store client once per worker and
+  closes it at shutdown. No endpoint consumes that store yet.
+- Encoder evaluation, immutable embedding artifacts, vector-store benchmarking,
+  and offline multi-batch ingest are still planned work.
 
-- `app/backend/app.py` serves `/api/health`, `/api/tasks`, `/api/shots`, `/api/search`, and `/api/submit` from `app/backend/data/shots.json`.
-- `app/frontend` is a Vite + React single-page UI that calls the Flask API through a Vite `/api` proxy.
-- Project-wide architecture is documented in `docs/ARCHITECTURE.md`; planned embedding/vector-store work is documented in `docs/technical/00-embedding-vector-store-evaluation.md` and `architecture/embedding-vector-pipeline.mmd`.
-- No production vector database, benchmark harness, or provider adapter is implemented yet.
+The UI direction was inspired by
+[VISIONE](https://github.com/aimh-lab/visione), but this repository owns its own
+runtime and architecture decisions.
 
 ## Repository layout
 
 ```text
 .
-├── AGENTS.md                         # local coding/agent conventions
-├── README.md                         # project overview and quickstart
 ├── app/
-│   ├── README.md                     # app-specific run instructions
-│   ├── backend/                      # Flask API prototype
-│   └── frontend/                     # Vite React prototype
-├── architecture/                     # diagrams and system views
+│   ├── backend/       # FastAPI service, tests, encoders, vector-store adapters
+│   └── frontend/      # Vite React prototype
+├── architecture/      # Mermaid sources and exported diagrams
 ├── docs/
-│   ├── CODE_PATTERN.md               # module boundaries and coding style
-│   ├── GIT_CONVENTION.md             # branch, commit, PR, and release rules
-│   └── technical/                    # technical design records
-└── fg-clip.ipynb                     # exploratory notebook; move secrets to env before reuse
+│   ├── ARCHITECTURE.md
+│   ├── GIT_CONVENTION.md
+│   └── technical/     # implementation plans and evaluation gates
+├── AGENTS.md          # local engineering instructions
+└── fg-clip.ipynb      # exploratory notebook
 ```
 
-## Quickstart
+Documentation ownership:
+
+- This README: repository overview and first run.
+- `app/backend/README.md`: backend setup, configuration, API, and runtime notes.
+- `docs/ARCHITECTURE.md`: verified current boundaries and agreed target flow.
+- `docs/technical/*`: detailed plans, evidence, and unresolved evaluation gates.
+
+Do not add another README unless a component has an independent setup or
+release lifecycle that cannot be explained by one of these documents.
+
+## Run locally
 
 Backend:
 
 ```bash
 cd app/backend
-uv sync                       # creates .venv from uv.lock
-cp .env.example .env          # optional: defaults work for local dev
+uv sync
+cp .env.example .env  # optional; defaults target local services
 uv run python main.py
 ```
 
-Frontend:
+Frontend, in another terminal:
 
 ```bash
 cd app/frontend
@@ -48,46 +64,31 @@ npm install
 npm run dev
 ```
 
-Open `http://localhost:5173`. The Vite dev server proxies `/api` to the FastAPI backend on `http://127.0.0.1:8000`.
+Open `http://localhost:5173`. Vite proxies `/api` to
+`http://127.0.0.1:8000`; FastAPI exposes Swagger UI at
+`http://localhost:8000/docs`.
 
-## Architecture direction
+Starting the backend also connects to the provider selected in
+`app/backend/config/vector_store.yaml`. Provision the configured collection or
+use the contract-test fixtures before exercising vector-store behavior.
 
-Use a modular monolith until benchmark data proves another deployment shape is needed.
+## Development
 
-```text
-browser UI
-  -> API routes
-  -> application use cases
-  -> domain scoring/retrieval policies
-  -> repositories/adapters
-  -> local data, embedding artifacts, or selected vector store
-```
-
-Near-term modules:
-
-- `shot_catalog`: shot/keyframe metadata loading and validation.
-- `retrieval`: query validation, scoring, grouping, and result shaping.
-- `embedding`: FG-CLIP/BEiT-3 encoder adapters and immutable embedding artifacts.
-- `vector_store`: Milvus/Qdrant provider adapters behind one contract.
-- `benchmark`: reproducible experiment runner and report generation.
-- `submission`: competition answer payload preparation and audit trail.
-
-See `docs/ARCHITECTURE.md` and `architecture/system-overview.mmd` for the intended module flow.
-
-## Development guardrails
-
-- Keep the prototype simple: add a boundary only when the current change needs it.
-- Keep HTTP/UI code at the edges; keep ranking and validation rules in pure functions where possible.
-- Do not commit credentials, dataset dumps, model weights, generated caches, or benchmark artifacts.
-- Treat `docs/technical/00-embedding-vector-store-evaluation.md` as planning guidance until BEiT-3 checkpoint, dataset scale, SLO, and benchmark decision weights are approved.
-
-## Verification commands
-
-Use the narrowest check that proves your change:
+Backend dependencies and checks:
 
 ```bash
-python3 -m py_compile app/backend/app.py
-cd app/frontend && npm run build
+cd app/backend
+uv sync
+uv run pytest
 ```
 
-When tests are added, keep the default local gate in a `make verify` or equivalent script and update this README.
+Frontend check:
+
+```bash
+cd app/frontend
+npm run build
+```
+
+Architecture details live in `docs/ARCHITECTURE.md`; the active embedding and
+vector-store evaluation gates live in
+`docs/technical/00-embedding-vector-store-evaluation.md`.

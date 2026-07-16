@@ -1,99 +1,103 @@
-# Architecture Guide
+# Architecture
 
-Status: **project convention + planning baseline**  
-Project: HCM AI Challenge Pipeline 2026 / BoldSearch
+Status: current implementation plus agreed near-term boundaries. Claims marked
+**verified** are backed by the current tree; target items are not implemented.
 
-## Source and claim status
+## Current system
 
-| Claim | Status | Evidence |
+BoldSearch is a modular monolith: one FastAPI backend and one Vite React UI.
+
+| Capability | Current state | Evidence |
 |---|---|---|
-| Current app is a Flask API plus Vite React UI prototype. | Verified | `app/README.md`, `app/backend/app.py`, `app/frontend/package.json` |
-| Current search is lexical/object/color/temporal over sample `shots.json`. | Verified | `app/backend/app.py`, `app/backend/data/shots.json` |
-| Embedding/vector-store pipeline is planned but not production-implemented. | Verified | dependency inventory and `docs/technical/00-embedding-vector-store-evaluation.md` |
-| Final vector-store provider should be chosen by benchmark, not preference. | Inferred project decision | `docs/technical/00-embedding-vector-store-evaluation.md` |
-| BEiT-3 checkpoint checksum, dataset scale, SLO, and benchmark weights remain open. | Unresolved | `app/backend/config/embedding.yaml`; no ADR yet |
+| Search | Lexical, object, color, and temporal scoring over sample `shots.json`. | `app/backend/search/` |
+| Embedding | Encoder adapters exist; HTTP routes are placeholders. | `app/backend/encoders/`, `app/backend/embedding/` |
+| OCR, ASR, detection | HTTP contracts are placeholders. | corresponding backend feature packages |
+| Vector store | One neutral `VectorStore` Protocol with Qdrant and Milvus adapters and shared contract tests. | `app/backend/vector_store/`, `app/backend/tests/contract/` |
+| Vector-store lifecycle | One configured client/adapter is opened per FastAPI worker and stored on `app.state`; no endpoint consumes it yet. | `app/backend/main.py`, `app/backend/tests/test_main.py` |
+| Frontend | React prototype using the Vite `/api` proxy. | `app/frontend/` |
+| Benchmark/offline ingest | Not implemented. | technical plan only |
 
-## Architecture style
+Source diagram: `architecture/system-overview.mmd`.
 
-Use a **modular monolith** for the 2026 challenge pipeline until benchmark or deployment constraints prove a split service is needed.
-
-Why:
-
-- The current system is small and benefits from fast local iteration.
-- Retrieval quality and benchmark correctness are more important than service topology.
-- Provider adapters already isolate the likely volatile parts: model runtimes and vector databases.
-
-## System view
-
-Source diagram: `architecture/system-overview.mmd`; exported preview: `architecture/system-overview.svg`.
+## Boundaries
 
 ```text
-Challenge operator / participant
-  -> React UI
-  -> Flask API
-  -> retrieval/submission use cases
-  -> pure scoring and validation policies
-  -> shot catalog repository, embedding encoders, vector-store adapters
-  -> sample JSON now; embedding artifacts and selected vector DB later
+browser
+  -> FastAPI router             external HTTP schema and translation
+  -> application/pure logic     retrieval and result shaping
+  -> provider-neutral contract  VectorStore / encoder behavior
+  -> adapter                    Qdrant, Milvus, or model SDK
 ```
 
-## Main capabilities
+- Pydantic feature schemas are external HTTP contracts.
+- Vector-store dataclasses are internal method inputs and outputs.
+- `VectorStore` is a structural Protocol because consumers need behavior, not
+  shared implementation or lifecycle hooks.
+- Qdrant and Milvus adapters own reusable client and collection state.
+- Pure SDK-to-neutral transformations stay as functions or private methods; a
+  class is warranted only when it uses adapter state.
+- Provider field names and SDK response objects must not cross the adapter
+  boundary.
 
-| Capability | Purpose | Current state | Target direction |
-|---|---|---|---|
-| `shot_catalog` | Load and validate shot/keyframe metadata. | JSON file loaded directly by Flask. | Repository module with typed records and fixture-backed tests. |
-| `retrieval` | Validate query, score/search candidates, group keyframes to shots, shape results. | Inline functions in `app.py`. | Pure scoring plus application use case. |
-| `embedding` | Encode text/images with FG-CLIP or BEiT-3 and write immutable artifacts. | Two encoder adapters plus YAML selection. | Artifact manifest/checksum validation and exact offline evaluation. |
-| `vector_store` | Store/search vectors through a provider-neutral contract. | Not implemented. | Milvus and Qdrant adapters behind shared contract tests. |
-| `benchmark` | Compare providers, index settings, and models reproducibly. | Planning doc only. | Harness with fixed manifests, query labels, raw run metadata, and reports. |
-| `submission` | Prepare challenge answer payloads and audit accepted submissions. | `/api/submit` returns a local payload. | Submission use case with stable payload contract and audit record. |
-| `frontend` | Operator UI for KIS/VKIS query construction and result review. | React prototype. | Keep API client thin; move reusable UI behaviors into hooks/components only when needed. |
+## Runtime ownership
 
-## Request flow
+FastAPI lifespan is the composition root for the current process:
 
-### Current prototype search
+1. Read the provider and collection from `AppConfig`.
+2. Create the selected SDK client after application startup begins.
+3. Wrap it in one `VectorStore` adapter and expose it through `app.state`.
+4. Close the client during shutdown.
 
-1. UI sends `POST /api/search` with query, task, modalities, objects, colors, temporal cue, and minimum confidence.
-2. Flask route parses the payload.
-3. `score_shot` ranks each shot from `shots.json`.
-4. Results are sorted by score and returned to the UI.
+The provider branch belongs only in this composition root. Search and ingest
+consumers should receive the neutral store and must not repeat the
+Qdrant/Milvus selection.
 
-### Target vector-backed search
+The store is intentionally not split into search and ingest ports yet because
+there is only one lifecycle and no real consumer requiring a narrower surface.
+Revisit that decision if search and ingest move to separate processes or acquire
+different permissions/scaling needs.
 
-1. Route validates task, query/reference image, filters, and top-k.
-2. Retrieval use case selects the configured model namespace.
-3. Encoder adapter creates a query vector using the same model/checkpoint as the indexed artifact.
-4. VectorStore adapter searches the selected provider and normalizes score semantics to **higher is better**.
-5. Retrieval use case groups keyframes by `shot_id`, applies tie-breaking, and returns metadata.
-6. Route maps the result to the public API response.
+## Configuration ownership
 
-## Offline pipeline
+Environment settings hold deployment-specific values such as service URLs.
+Versioned YAML holds reviewed experiment/design decisions such as selected
+provider, collection, encoder, and metric. `AppConfig` is the single merged
+runtime settings object; provider-specific config subclasses are unnecessary
+until their validation or consumers materially diverge.
 
-1. Extract videos into deterministic shot/keyframe metadata.
-2. Encode keyframes with a pinned model/checkpoint.
-3. Validate vector dimension, finite values, dtype, and L2 norm.
-4. Write an immutable artifact with manifest and checksum.
-5. Run exact cosine evaluation and select one model baseline.
-6. In a later phase, ingest that locked artifact into Milvus and Qdrant through the same contract.
-7. Run exact-search correctness and ANN benchmarks, then record an ADR before choosing a provider.
+## Current and target flows
 
-Detailed vector-store design lives in `docs/technical/00-embedding-vector-store-evaluation.md`.
+Current search:
 
-## Runtime boundaries
+1. `POST /api/search/query` validates `SearchRequest`.
+2. The router loads sample shots and calls pure scoring logic.
+3. Ranked results are returned through the HTTP response schema.
 
-| Boundary | Pattern |
-|---|---|
-| HTTP API | Flask app factory; thin routes; typed app errors mapped to JSON. |
-| UI | Vite React; one API base; local component state until reuse demands extraction. |
-| Model inference | Adapter class with explicit `describe`, `encode_images`, and `encode_texts`. |
-| Vector database | Provider-neutral port with Milvus/Qdrant implementations and shared contract tests. |
-| Artifacts | Immutable manifest + checksum; no silent mutation after benchmark starts. |
-| Secrets | Environment variables or local ignored `.env`; never notebook literals or committed text files. |
+Target vector-backed search:
+
+1. A use case receives the shared `VectorStore` and selected encoder.
+2. The encoder creates a vector from the locked model/checkpoint.
+3. `VectorStore.search()` returns provider-neutral `SearchHit` values.
+4. The use case groups keyframes, shapes results, and the router maps them to
+   the public response schema.
+
+Target ingestion remains deliberately small in the current baseline:
+
+1. A consumer creates provider-neutral `VectorPoint` values.
+2. `VectorStore.ingest()` writes one batch and makes it searchable.
+3. Provisioning, GPU batching, artifact orchestration, and collection rebuilds
+   remain outside the adapter until their workflows are designed.
 
 ## Guardrails
 
-- Do not mix embeddings from different models/checkpoints in one namespace.
-- Do not compare raw similarity scores across models.
-- Do not let provider SDK response shapes leak into retrieval/domain code.
-- Do not benchmark database latency while inference time is included unless the report explicitly names it as end-to-end latency.
-- Do not choose Milvus or Qdrant without approved dataset scale, SLO, hardware profile, relevance labels, and decision weights.
+- Do not open provider connections at module import time.
+- Do not let HTTP code import provider SDK types.
+- Do not let the API create, recreate, or drop collections.
+- Do not mix vectors from different model/checkpoint identities.
+- Do not compare provider or model scores without normalized semantics and a
+  reproducible benchmark.
+- Do not add base classes, factories, loaders, or narrower ports until a current
+  consumer needs the extra behavior.
+
+Evaluation gates and unresolved model/provider decisions live in
+`docs/technical/00-embedding-vector-store-evaluation.md`.

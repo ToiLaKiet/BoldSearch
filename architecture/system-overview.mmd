@@ -1,26 +1,39 @@
 flowchart LR
-  User[Challenge operator / participant] --> UI[Vite React UI]
-  UI --> API[Flask API routes]
+  User["Challenge operator / participant"] --> UI["Vite React UI"]
+  UI --> API["FastAPI app (main.py, /api prefix)"]
 
-  subgraph Backend[Modular monolith backend]
-    API --> Retrieval[Retrieval use cases]
-    API --> Submission[Submission use cases]
-    Retrieval --> Catalog[Shot catalog repository]
-    Retrieval --> Scoring[Pure scoring and grouping policies]
-    Retrieval --> Encoder[Embedding encoder port]
-    Retrieval --> Store[Vector store port]
-    Submission --> Catalog
+  subgraph Backend["Modular monolith backend"]
+    API --> Search["search router — real"]
+    API --> Embedding["embedding router — stub, TODO"]
+    API --> OCR["ocr router — stub, TODO"]
+    API --> ASR["asr router — stub, TODO"]
+    API --> ObjDet["object_detection router — stub, TODO"]
+    API -. "lifespan owns resource; endpoints not wired" .-> Store
+
+    Search --> Catalog["Shot catalog (search/service.py)"]
+    Search --> Scoring["Pure scoring + grouping (search/service.py)"]
+
+    Embedding -. "not wired yet" .-> EncoderLoader
+
+    subgraph EncInfra["encoders/ — infrastructure, no FastAPI import"]
+      EncoderLoader["encoders/loader.py — build_encoder(config)"]
+      EncoderLoader --> FGCLIP["FG-CLIP adapter"]
+      EncoderLoader --> BEIT3["BEiT-3 adapter"]
+      EmbeddingYAML["config/embedding.yaml"] --> EncoderLoader
+    end
+
+    subgraph VSInfra["vector_store/ — one provider-neutral Protocol"]
+      Store["main.lifespan — one VectorStore per worker"]
+      Store --> Qdrant["QdrantStore — search + ingest"]
+      Store --> Milvus["MilvusStore — search + ingest"]
+    end
   end
 
-  Catalog --> LocalJSON[(Sample shots.json)]
-  Encoder --> FGCLIP[FG-CLIP adapter]
-  Encoder --> BEIT3[BEiT-3 adapter]
-  Store --> Milvus[Milvus adapter]
-  Store --> Qdrant[Qdrant adapter]
+  Catalog --> LocalJSON[("Sample shots.json")]
 
-  subgraph Offline[Offline pipeline and benchmark]
-    Media[Videos and keyframes] --> Artifact[Embedding artifact + manifest]
-    Artifact --> Harness[Benchmark harness]
+  subgraph Offline["Offline pipeline + benchmark — not built yet"]
+    Media["Videos and keyframes"] --> Artifact["Embedding artifact + manifest"]
+    Artifact --> Harness["Benchmark harness"]
     Harness --> Store
-    Harness --> Report[Benchmark report and ADR input]
+    Harness --> Report["Benchmark report + ADR input"]
   end

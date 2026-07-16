@@ -1,1 +1,1 @@
-# Embedding module — CLIP/FG-CLIP encoding and Milvus vector indexing
+"""Embedding HTTP contracts for encoding, search, and indexing."""
