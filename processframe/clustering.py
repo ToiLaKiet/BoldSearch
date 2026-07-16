@@ -1,26 +1,77 @@
+from __future__ import annotations
+
 import numpy as np
+
 try:
     from sklearn.cluster import AgglomerativeClustering
+
     HAS_SKLEARN = True
 except ImportError:
     HAS_SKLEARN = False
+
+
+def pairwise_cosine_distance(embeddings: np.ndarray) -> np.ndarray:
+    """Tính ma trận khoảng cách cosine, giả định vector đã L2-normalize."""
+    embeddings = np.asarray(embeddings, dtype=float)
+    similarity = np.clip(embeddings @ embeddings.T, -1.0, 1.0)
+    distance = 1.0 - similarity
+    np.fill_diagonal(distance, 0.0)
+    return distance
+
+
+def estimate_adaptive_threshold(
+    embeddings: np.ndarray,
+    max_threshold: float = 0.12,
+    min_threshold: float | None = None,
+    mad_scale: float = 1.4826,
+) -> float:
+    """Ước lượng ngưỡng clustering bảo thủ cho từng shot.
+
+    Ngưỡng được suy ra từ khoảng cách nearest-neighbor của từng frame và luôn
+    bị chặn không vượt quá ``max_threshold``. Vì vậy cơ chế adaptive chỉ làm
+    ngưỡng chặt hơn, không làm tăng nguy cơ false merge so với cấu hình gốc.
+    """
+    embeddings = np.asarray(embeddings, dtype=float)
+    n = len(embeddings)
+    if n <= 2:
+        return float(max_threshold)
+    if max_threshold <= 0:
+        raise ValueError("max_threshold must be positive")
+
+    if min_threshold is None:
+        min_threshold = max(1e-3, max_threshold * 0.35)
+    if not 0 < min_threshold <= max_threshold:
+        raise ValueError("min_threshold must be in (0, max_threshold]")
+
+    distances = pairwise_cosine_distance(embeddings)
+    np.fill_diagonal(distances, np.inf)
+    nearest = np.min(distances, axis=1)
+    nearest = nearest[np.isfinite(nearest)]
+    if nearest.size == 0:
+        return float(max_threshold)
+
+    median = float(np.median(nearest))
+    mad = float(np.median(np.abs(nearest - median)))
+    estimate = median + mad_scale * mad
+    return float(np.clip(estimate, min_threshold, max_threshold))
+
 
 def cluster_candidates(
     embeddings: np.ndarray,
     tau_cluster: float = 0.12,
 ) -> np.ndarray:
+    """Gom cụm bằng Agglomerative Complete Linkage và cosine distance.
+
+    Complete linkage bảo đảm khoảng cách lớn nhất giữa hai điểm thuộc cùng cụm
+    không vượt quá ngưỡng tại thời điểm gộp, phù hợp hơn connected components
+    cho duplicate detection.
     """
-    Gom cụm các frame ứng viên sử dụng Agglomerative Clustering với linkage='complete'.
-    Complete linkage đảm bảo mọi cặp trong một cluster đều có khoảng cách cosine < tau_cluster.
-    
-    Parameters:
-        embeddings: [num_candidates, embedding_dim] - Các vector embedding đã L2-normalize.
-        tau_cluster: Ngưỡng khoảng cách cosine (max allowed distance). 
-                     Nếu khoảng cách lớn hơn ngưỡng này, các cụm sẽ không gộp vào nhau.
-                     
-    Returns:
-        np.ndarray: Mảng nhãn cụm (cluster labels) cho từng frame.
-    """
+    embeddings = np.asarray(embeddings, dtype=float)
+    if embeddings.ndim != 2:
+        raise ValueError("embeddings must have shape [N, D]")
+    if tau_cluster <= 0:
+        raise ValueError("tau_cluster must be positive")
+
     n = len(embeddings)
     if n == 0:
         return np.array([], dtype=int)
@@ -28,56 +79,41 @@ def cluster_candidates(
         return np.zeros(1, dtype=int)
 
     if HAS_SKLEARN:
-        clustering = AgglomerativeClustering(
+        kwargs = dict(
             n_clusters=None,
-            metric="cosine",
             linkage="complete",
-            distance_threshold=tau_cluster
+            distance_threshold=float(tau_cluster),
         )
-        return clustering.fit_predict(embeddings)
-    else:
-        # Fallback thủ công nếu không cài sklearn:
-        # Triển khai thuật toán gộp cụm Complete Linkage đơn giản
-        labels = np.arange(n)
-        
-        # Tính ma trận khoảng cách cosine (1 - cos_sim)
-        sim_matrix = embeddings @ embeddings.T
-        dist_matrix = 1.0 - sim_matrix
-        np.fill_diagonal(dist_matrix, 0.0)
-        
-        # Tạo cấu trúc cụm ban đầu
-        clusters = {i: [i] for i in range(n)}
-        
-        while True:
-            # Tìm cặp cụm có khoảng cách complete-linkage nhỏ nhất
-            min_dist = np.inf
-            merge_pair = None
-            
-            cluster_keys = list(clusters.keys())
-            for idx_a in range(len(cluster_keys)):
-                for idx_b in range(idx_a + 1, len(cluster_keys)):
-                    c_a = cluster_keys[idx_a]
-                    c_b = cluster_keys[idx_b]
-                    
-                    # Complete linkage: Khoảng cách tối đa giữa các điểm của 2 cụm
-                    sub_dists = dist_matrix[np.ix_(clusters[c_a], clusters[c_b])]
-                    max_d = np.max(sub_dists)
-                    
-                    if max_d < min_dist:
-                        min_dist = max_d
-                        merge_pair = (c_a, c_b)
-            
-            # Chỉ gộp nếu khoảng cách nhỏ hơn ngưỡng tau_cluster
-            if merge_pair is not None and min_dist <= tau_cluster:
-                c_keep, c_drop = merge_pair
-                clusters[c_keep].extend(clusters[c_drop])
-                del clusters[c_drop]
-            else:
-                break
-                
-        # Cập nhật nhãn cụm
-        out_labels = np.zeros(n, dtype=int)
-        for label_id, (key, val) in enumerate(clusters.items()):
-            for idx in val:
-                out_labels[idx] = label_id
-        return out_labels
+        try:
+            model = AgglomerativeClustering(metric="cosine", **kwargs)
+        except TypeError:  # sklearn cũ
+            model = AgglomerativeClustering(affinity="cosine", **kwargs)
+        return model.fit_predict(embeddings).astype(int)
+
+    distances = pairwise_cosine_distance(embeddings)
+    clusters: dict[int, list[int]] = {i: [i] for i in range(n)}
+
+    while True:
+        min_distance = np.inf
+        merge_pair: tuple[int, int] | None = None
+        keys = list(clusters)
+
+        for i, key_a in enumerate(keys):
+            for key_b in keys[i + 1 :]:
+                complete_distance = float(
+                    np.max(distances[np.ix_(clusters[key_a], clusters[key_b])])
+                )
+                if complete_distance < min_distance:
+                    min_distance = complete_distance
+                    merge_pair = (key_a, key_b)
+
+        if merge_pair is None or min_distance > tau_cluster:
+            break
+
+        keep, drop = merge_pair
+        clusters[keep].extend(clusters.pop(drop))
+
+    labels = np.empty(n, dtype=int)
+    for label, members in enumerate(clusters.values()):
+        labels[members] = label
+    return labels

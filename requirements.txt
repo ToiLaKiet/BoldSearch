@@ -1,0 +1,4 @@
+numpy>=1.24
+scikit-learn>=1.2
+# Optional but recommended for faster OCR string similarity:
+rapidfuzz>=3.0
