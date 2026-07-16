@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import pytest
+from pydantic import ValidationError
+
 from app_config import AppConfig
 
 
@@ -12,6 +15,8 @@ def test_defaults_apply_when_nothing_is_set():
     assert config.API_PREFIX == "/api"
     assert config.HOST == "0.0.0.0"
     assert config.PORT == 8000
+    assert config.VECTOR_STORE_PROVIDER == "qdrant"
+    assert config.VECTOR_STORE_COLLECTION == "keyframes"
     assert config.QDRANT_URL == "http://localhost:6333"
     assert config.MILVUS_URI == "http://localhost:19530"
     assert config.VECTOR_STORE_CONFIG_PATH == "config/vector_store.yaml"
@@ -37,7 +42,7 @@ def test_env_vars_override_the_defaults(monkeypatch):
 
 
 def test_both_provider_urls_coexist(monkeypatch):
-    """Benchmarking switches provider via the yaml; both urls stay configured."""
+    """Both provider URLs remain available when switching the selected provider."""
     monkeypatch.setenv("QDRANT_URL", "https://cluster.qdrant.io:6333")
     monkeypatch.setenv("MILVUS_URI", "./milvus_demo.db")
 
@@ -45,6 +50,71 @@ def test_both_provider_urls_coexist(monkeypatch):
 
     assert config.QDRANT_URL == "https://cluster.qdrant.io:6333"
     assert config.MILVUS_URI == "./milvus_demo.db"
+
+
+def test_unknown_vector_store_provider_is_rejected(monkeypatch):
+    monkeypatch.setenv("VECTOR_STORE_PROVIDER", "unknown")
+
+    with pytest.raises(ValidationError):
+        AppConfig(_env_file=None)
+
+
+def test_load_merges_yaml_decisions_into_app_config(tmp_path):
+    path = tmp_path / "vector_store.yaml"
+    path.write_text(
+        "vector_store:\n"
+        "  type: milvus\n"
+        "  collection: video-keyframes\n"
+        "  metric: cosine\n",
+        encoding="utf-8",
+    )
+
+    config = AppConfig.load(
+        _env_file=None,
+        VECTOR_STORE_CONFIG_PATH=str(path),
+        MILVUS_URI="./milvus.db",
+    )
+
+    assert config.VECTOR_STORE_PROVIDER == "milvus"
+    assert config.VECTOR_STORE_COLLECTION == "video-keyframes"
+    assert config.MILVUS_URI == "./milvus.db"
+
+
+def test_yaml_provider_decision_overrides_environment(monkeypatch, tmp_path):
+    path = tmp_path / "vector_store.yaml"
+    path.write_text(
+        "vector_store:\n"
+        "  type: milvus\n"
+        "  collection: video-keyframes\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("VECTOR_STORE_PROVIDER", "qdrant")
+    monkeypatch.setenv("VECTOR_STORE_COLLECTION", "wrong-collection")
+
+    config = AppConfig.load(
+        _env_file=None,
+        VECTOR_STORE_CONFIG_PATH=str(path),
+    )
+
+    assert config.VECTOR_STORE_PROVIDER == "milvus"
+    assert config.VECTOR_STORE_COLLECTION == "video-keyframes"
+
+
+def test_load_rejects_provider_url_in_yaml(tmp_path):
+    path = tmp_path / "vector_store.yaml"
+    path.write_text(
+        "vector_store:\n"
+        "  type: qdrant\n"
+        "  collection: keyframes\n"
+        "  url: http://wrong-source\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="url.*environment settings"):
+        AppConfig.load(
+            _env_file=None,
+            VECTOR_STORE_CONFIG_PATH=str(path),
+        )
 
 
 def test_unknown_env_vars_are_ignored_not_rejected(monkeypatch):

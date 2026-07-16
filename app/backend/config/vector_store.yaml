@@ -3,5 +3,4 @@ vector_store:
   collection: keyframes
   metric: cosine
 
-# url comes from .env (QDRANT_URL / MILVUS_URI), not here.
-# One yaml per provider; VECTOR_STORE_CONFIG_PATH picks which one runs.
+# Provider URLs come from .env, not this file.
