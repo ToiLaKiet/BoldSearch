@@ -1,0 +1,34 @@
+[project]
+name = "boldsearch"
+version = "0.2.0"
+description = "Interactive video shot retrieval system for the HCM AI Challenge."
+requires-python = ">=3.13"
+dependencies = [
+    "einops>=0.7.0",
+    "fastapi==0.115.12",
+    "numpy>=1.24.0",
+    "pillow>=10.0.0",
+    "pydantic==2.13.4",
+    "pydantic-settings==2.7.0",
+    "pyyaml>=6.0.0,<7.0.0",
+    "sentencepiece>=0.2.0",
+    "timm>=0.6.13,<0.7.0",
+    "torch>=2.0.0",
+    "torchscale==0.3.0",
+    "torchvision>=0.15.0",
+    "transformers>=4.40.0,<5.0.0",
+    "uvicorn[standard]==0.34.3",
+]
+
+[tool.uv]
+# An app, not a library: nothing imports `boldsearch`, so uv must not build it.
+package = false
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0.0",
+]

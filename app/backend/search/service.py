@@ -10,11 +10,10 @@ from __future__ import annotations
 import json
 import math
 import re
+from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
-from core.config import DATA_DIR
-
-SHOTS_PATH = DATA_DIR / "shots.json"
+SHOTS_PATH = Path("data/shots.json")
 
 
 # ── Data loading ─────────────────────────────────────────────────────

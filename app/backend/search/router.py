@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
 
-from core.config import SYSTEM_NAME
+from app_config import app_config
 from search import schema, service
 
 router = APIRouter(prefix="/search", tags=["search"])
@@ -21,7 +21,7 @@ router = APIRouter(prefix="/search", tags=["search"])
 async def get_tasks():
     """Return the list of supported retrieval tasks."""
     return schema.TasksResponse(
-        system=SYSTEM_NAME,
+        system=app_config.SYSTEM_NAME,
         tasks=[
             schema.TaskInfo(
                 id="KIS",
@@ -79,7 +79,7 @@ async def search_query(body: schema.SearchRequest):
     results.sort(key=lambda item: item["score"], reverse=True)
 
     return schema.SearchResponse(
-        system=SYSTEM_NAME,
+        system=app_config.SYSTEM_NAME,
         task=task if task in {"KIS", "VKIS"} else "KIS",
         query=body.query,
         count=len(results),
@@ -102,7 +102,7 @@ async def submit_shot(body: schema.SubmitRequest):
 
     return schema.SubmitResponse(
         status="accepted",
-        system=SYSTEM_NAME,
+        system=app_config.SYSTEM_NAME,
         submission=schema.SubmissionDetail(
             shotId=shot["id"],
             videoId=shot["videoId"],

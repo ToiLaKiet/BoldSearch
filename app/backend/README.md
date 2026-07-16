@@ -7,9 +7,7 @@ Backend API cho hệ thống — xây dựng bằng **FastAPI** với kiến tr�
 ```text
 backend/
 ├── main.py                          # Entry point — khởi tạo app, đăng ký routers
-├── core/
-│   ├── __init__.py
-│   └── config.py                    # Cấu hình chung (paths, port, tên hệ thống)
+├── app_config.py                    # Đọc .env + hằng số chung (SYSTEM_NAME, API_PREFIX)
 ├── search/                          # Module tìm kiếm shot
 │   ├── __init__.py
 │   ├── router.py                    # Endpoints: tasks, shots, query, submit
@@ -33,19 +31,29 @@ backend/
 │   └── schema.py                    # Vector encoding + similarity search schemas
 ├── data/
 │   └── shots.json                   # Dữ liệu mẫu (8 shots)
-└── requirements.txt                 # fastapi, uvicorn, pydantic
+├── config/                          # Quyết định thiết kế: model, vector store
+│   ├── embedding.yaml               # Encoder nào, dimension, checkpoint
+│   └── vector_store.yaml            # Provider nào, collection, metric
+├── .env.example                     # Thứ đổi theo máy: HOST/PORT, url provider
+├── pyproject.toml                   # Dependencies + cấu hình pytest
+└── uv.lock                          # Khoá version — đừng sửa tay
 ```
+
+Ranh giới config: `.env` giữ thứ đổi theo máy, `config/*.yaml` giữ quyết định
+thiết kế (review được trong PR), `app_config.py` là nơi duy nhất đọc env.
+
+Dependencies khai ở `pyproject.toml`, khoá bởi `uv.lock` — cả hai nằm cùng thư mục này.
 
 ## Cài đặt & Chạy
 
 ```bash
 cd app/backend
-pip install -r requirements.txt
-python main.py
+uv sync                              # dựng .venv từ uv.lock
+uv run python main.py
 ```
 
-- API server: `http://localhost:5001`
-- Swagger UI (tài liệu API tự động): `http://localhost:5001/docs`
+- API server: `http://localhost:8000`
+- Swagger UI (tài liệu API tự động): `http://localhost:8000/docs`
 
 ## API Endpoints
 
@@ -125,11 +133,11 @@ async def extract_text(body: schema.OcrRequest):
 
 ### Bước 3 — Thêm dependencies
 
-Thêm package cần thiết vào `requirements.txt`:
+Dùng `uv add` ở thư mục này — nó tự cập nhật `pyproject.toml` và `uv.lock`.
+Đừng sửa tay `uv.lock`:
 
-```text
-paddleocr==2.9.1
-paddlepaddle==3.1.0
+```bash
+uv add 'paddleocr==2.9.1' 'paddlepaddle==3.1.0'
 ```
 
 ## Cách thêm module mới
@@ -153,15 +161,18 @@ Comment 1 dòng trong `main.py`:
 
 ## Tech Stack
 
+Nguồn chính xác là `pyproject.toml` + `uv.lock`; bảng này chỉ để tham khảo nhanh.
+
 | Component | Version |
 |-----------|---------|
-| Python | 3.9+ |
+| Python | 3.13+ |
 | FastAPI | 0.115.12 |
 | Uvicorn | 0.34.3 |
-| Pydantic | 2.11.7 |
+| Pydantic | 2.13.4 |
+| pydantic-settings | 2.7.0 |
 
 ## Ghi chú
 
-- Frontend (Vite) proxy `/api` đến `http://127.0.0.1:5001` — xem `frontend/vite.config.js`
+- Frontend (Vite) proxy `/api` đến `http://127.0.0.1:8000` — xem `frontend/vite.config.js`
 - Swagger UI tại `/docs` tự động sinh tài liệu từ schema + docstring
 - Tất cả response đều có validation qua Pydantic — sai format sẽ trả 422 kèm chi tiết lỗi
