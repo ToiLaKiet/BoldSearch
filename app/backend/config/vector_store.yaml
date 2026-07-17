@@ -1,6 +1,0 @@
-vector_store:
-  type: qdrant
-  collection: keyframes
-  metric: cosine
-
-# Provider URLs come from .env, not this file.

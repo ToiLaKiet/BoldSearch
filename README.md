@@ -68,9 +68,9 @@ Open `http://localhost:5173`. Vite proxies `/api` to
 `http://127.0.0.1:8000`; FastAPI exposes Swagger UI at
 `http://localhost:8000/docs`.
 
-Starting the backend also connects to the provider selected in
-`app/backend/config/vector_store.yaml`. Provision the configured collection or
-use the contract-test fixtures before exercising vector-store behavior.
+Starting the backend also connects to the provider selected by
+`VECTOR_STORE_PROVIDER`. Provision the configured collection or use the
+contract-test fixtures before exercising vector-store behavior.
 
 ## Development
 
