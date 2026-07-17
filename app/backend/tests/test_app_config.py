@@ -15,7 +15,7 @@ def test_defaults_apply_when_nothing_is_set():
     assert config.API_PREFIX == "/api"
     assert config.HOST == "0.0.0.0"
     assert config.PORT == 8000
-    assert config.VECTOR_STORE_PROVIDER == "qdrant"
+    assert config.VECTOR_STORE_PROVIDER == "milvus"
     assert config.VECTOR_STORE_COLLECTION == "keyframes"
     assert config.QDRANT_URL == "http://localhost:6333"
     assert config.MILVUS_URI == "http://localhost:19530"
@@ -60,11 +60,11 @@ def test_unknown_vector_store_provider_is_rejected(monkeypatch):
 
 def test_provider_selection_comes_from_the_environment(monkeypatch):
     """The environment is the only source for the provider decision."""
-    monkeypatch.setenv("VECTOR_STORE_PROVIDER", "milvus")
+    monkeypatch.setenv("VECTOR_STORE_PROVIDER", "qdrant")
 
     config = AppConfig(_env_file=None)
 
-    assert config.VECTOR_STORE_PROVIDER == "milvus"
+    assert config.VECTOR_STORE_PROVIDER == "qdrant"
 
 
 def test_unknown_env_vars_are_ignored_not_rejected(monkeypatch):

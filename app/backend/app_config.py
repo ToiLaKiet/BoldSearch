@@ -17,7 +17,7 @@ class AppConfig(BaseSettings):
     PORT: int = 8000
 
     # ── Vector store ─────────────────────────────────────────────
-    VECTOR_STORE_PROVIDER: Literal["qdrant", "milvus"] = "qdrant"
+    VECTOR_STORE_PROVIDER: Literal["qdrant", "milvus"] = "milvus"
     VECTOR_STORE_COLLECTION: str = "keyframes"
     QDRANT_URL: str = "http://localhost:6333"
     MILVUS_URI: str = "http://localhost:19530"
