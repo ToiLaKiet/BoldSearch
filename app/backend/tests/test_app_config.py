@@ -19,6 +19,7 @@ def test_defaults_apply_when_nothing_is_set():
     assert config.VECTOR_STORE_COLLECTION == "keyframes"
     assert config.QDRANT_URL == "http://localhost:6333"
     assert config.MILVUS_URI == "http://localhost:19530"
+    assert config.MILVUS_TOKEN is None
     assert config.EMBEDDING_CONFIG_PATH == "config/embedding.yaml"
 
 
@@ -49,6 +50,15 @@ def test_both_provider_urls_coexist(monkeypatch):
 
     assert config.QDRANT_URL == "https://cluster.qdrant.io:6333"
     assert config.MILVUS_URI == "./milvus_demo.db"
+
+
+def test_milvus_token_from_env_allows_zilliz_cloud_auth(monkeypatch):
+    """A managed cluster (e.g. Zilliz Cloud) enforces auth; a local container does not."""
+    monkeypatch.setenv("MILVUS_TOKEN", "db_admin:password")
+
+    config = AppConfig(_env_file=None)
+
+    assert config.MILVUS_TOKEN == "db_admin:password"
 
 
 def test_unknown_vector_store_provider_is_rejected(monkeypatch):

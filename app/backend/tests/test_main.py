@@ -54,3 +54,27 @@ def test_lifespan_owns_milvus_store(monkeypatch):
     asyncio.run(run_lifespan())
 
     assert client.closed
+
+
+def test_lifespan_passes_milvus_token_for_managed_clusters(monkeypatch):
+    """A managed cluster (e.g. Zilliz Cloud) rejects connections without a token."""
+    received_kwargs = {}
+
+    def fake_milvus_client(**kwargs):
+        received_kwargs.update(kwargs)
+        return FakeClient()
+
+    monkeypatch.setattr(pymilvus, "MilvusClient", fake_milvus_client)
+    monkeypatch.setattr(main.app_config, "VECTOR_STORE_PROVIDER", "milvus")
+    monkeypatch.setattr(main.app_config, "MILVUS_URI", "https://in03-example.zillizcloud.com")
+    monkeypatch.setattr(main.app_config, "MILVUS_TOKEN", "db_admin:password")
+    test_app = FastAPI()
+
+    async def run_lifespan() -> None:
+        async with main.lifespan(test_app):
+            pass
+
+    asyncio.run(run_lifespan())
+
+    assert received_kwargs["uri"] == "https://in03-example.zillizcloud.com"
+    assert received_kwargs["token"] == "db_admin:password"

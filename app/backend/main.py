@@ -41,7 +41,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
         from vector_store.milvus import MilvusStore
 
-        client = MilvusClient(uri=app_config.MILVUS_URI)
+        client = MilvusClient(
+            uri=app_config.MILVUS_URI, token=app_config.MILVUS_TOKEN
+        )
         store = MilvusStore(client, app_config.VECTOR_STORE_COLLECTION)
 
     app.state.vector_store = store

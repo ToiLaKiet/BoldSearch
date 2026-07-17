@@ -21,6 +21,7 @@ class AppConfig(BaseSettings):
     VECTOR_STORE_COLLECTION: str = "keyframes"
     QDRANT_URL: str = "http://localhost:6333"
     MILVUS_URI: str = "http://localhost:19530"
+    MILVUS_TOKEN: str | None = None
 
     # ── Config files ─────────────────────────────────────────────
     EMBEDDING_CONFIG_PATH: str = "config/embedding.yaml"
