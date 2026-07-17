@@ -10,14 +10,18 @@ produces the vectors (an offline keyframe pipeline today) owns the model.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 
-from dependencies import get_vector_store
 from vector import schema
 from vector_store.ports import VectorStore
 from vector_store.schemas import VectorPoint
 
 router = APIRouter(prefix="/vector", tags=["vector"])
+
+
+def get_vector_store(request: Request) -> VectorStore:
+    """Return the vector store opened once by the application lifespan."""
+    return request.app.state.vector_store
 
 
 @router.post("/ingest", response_model=schema.IngestResponse)
