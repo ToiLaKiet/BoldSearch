@@ -1,39 +1,40 @@
 flowchart LR
-  User["Challenge operator / participant"] --> UI["Vite React UI"]
-  UI --> API["FastAPI app (main.py, /api prefix)"]
+  User["Người vận hành / thí sinh"] --> UI["Vite React UI"]
+  UI --> API["FastAPI app (main.py, prefix /api)"]
 
-  subgraph Backend["Modular monolith backend"]
-    API --> Search["search router — real"]
+  subgraph Backend["Backend modular monolith"]
+    API --> Search["search router — hoạt động thật"]
+    API --> Vector["vector router — ingest/search vector đã tính sẵn, hoạt động thật"]
     API --> Embedding["embedding router — stub, TODO"]
     API --> OCR["ocr router — stub, TODO"]
     API --> ASR["asr router — stub, TODO"]
     API --> ObjDet["object_detection router — stub, TODO"]
-    API -. "lifespan owns resource; endpoints not wired" .-> Store
 
-    Search --> Catalog["Shot catalog (search/service.py)"]
-    Search --> Scoring["Pure scoring + grouping (search/service.py)"]
+    Search --> Catalog["Danh mục shot (search/service.py)"]
+    Search --> Scoring["Chấm điểm + gom nhóm thuần (search/service.py)"]
 
-    Embedding -. "not wired yet" .-> EncoderLoader
+    Vector --> Store
+    Embedding -. "chưa nối vào Store" .-> EncoderLoader
 
-    subgraph EncInfra["encoders/ — infrastructure, no FastAPI import"]
+    subgraph EncInfra["encoders/ — hạ tầng, không import FastAPI"]
       EncoderLoader["encoders/loader.py — build_encoder(config)"]
-      EncoderLoader --> FGCLIP["FG-CLIP adapter"]
-      EncoderLoader --> BEIT3["BEiT-3 adapter"]
+      EncoderLoader --> FGCLIP["Adapter FG-CLIP"]
+      EncoderLoader --> BEIT3["Adapter BEiT-3"]
       EmbeddingYAML["config/embedding.yaml"] --> EncoderLoader
     end
 
-    subgraph VSInfra["vector_store/ — one provider-neutral Protocol"]
-      Store["main.lifespan — one VectorStore per worker"]
+    subgraph VSInfra["vector_store/ — một Protocol trung lập theo provider"]
+      Store["main.lifespan — một VectorStore mỗi worker"]
       Store --> Qdrant["QdrantStore — search + ingest"]
       Store --> Milvus["MilvusStore — search + ingest"]
     end
   end
 
-  Catalog --> LocalJSON[("Sample shots.json")]
+  Catalog --> LocalJSON[("shots.json mẫu")]
 
-  subgraph Offline["Offline pipeline + benchmark — not built yet"]
-    Media["Videos and keyframes"] --> Artifact["Embedding artifact + manifest"]
+  subgraph Offline["Pipeline offline + benchmark — chưa xây dựng"]
+    Media["Video và keyframe"] --> Artifact["Artifact embedding + manifest"]
     Artifact --> Harness["Benchmark harness"]
     Harness --> Store
-    Harness --> Report["Benchmark report + ADR input"]
+    Harness --> Report["Báo cáo benchmark + input cho ADR"]
   end

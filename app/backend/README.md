@@ -1,68 +1,71 @@
 # BoldSearch backend
 
-FastAPI backend for shot retrieval and the in-progress multimodal pipeline.
+Backend FastAPI cho việc truy xuất shot và pipeline multimodal đang xây dựng.
 
-## Setup
+## Cài đặt
 
 ```bash
 uv sync
-cp .env.example .env  # optional
+cp .env.example .env  # tùy chọn
 uv run python main.py
 ```
 
 - API: `http://localhost:8000`
 - Swagger UI: `http://localhost:8000/docs`
-- Tests: `uv run pytest`
+- Test: `uv run pytest`
 
-Use `uv add <package>` to change dependencies. `pyproject.toml` is the declared
-dependency set and `uv.lock` is the generated lock file.
+Dùng `uv add <package>` để thay đổi dependency. `pyproject.toml` là tập
+dependency khai báo và `uv.lock` là lock file được sinh ra.
 
-## Module ownership
+## Sở hữu module
 
 ```text
 backend/
-├── main.py               # FastAPI assembly and process lifecycle
-├── app_config.py         # merge environment settings with YAML decisions
-├── search/               # working sample-data search and submission routes
-├── embedding/            # placeholder HTTP contracts
-├── ocr/                  # placeholder HTTP contracts
-├── asr/                  # placeholder HTTP contracts
-├── object_detection/     # placeholder HTTP contracts
-├── encoders/             # model-runtime adapters and selection
-├── vector_store/         # neutral schemas, contract, Qdrant/Milvus adapters
-├── config/               # reviewed model and vector-store decisions
-├── data/                 # sample shot catalogue
-└── tests/                # unit, lifecycle, and provider contract tests
+├── main.py               # lắp ráp FastAPI và vòng đời tiến trình
+├── app_config.py         # settings runtime đọc từ môi trường/.env
+├── search/               # route search và submit hoạt động trên dữ liệu mẫu
+├── embedding/             # contract HTTP dạng placeholder
+├── ocr/                  # contract HTTP dạng placeholder
+├── asr/                  # contract HTTP dạng placeholder
+├── object_detection/     # contract HTTP dạng placeholder
+├── encoders/             # adapter model-runtime và lựa chọn encoder
+├── vector/               # contract HTTP cho ingest/search vector đã tính sẵn
+├── vector_store/         # schema trung lập, contract, adapter Qdrant/Milvus
+├── config/               # quyết định encoder/model đã review (config/embedding.yaml)
+├── data/                 # danh mục shot mẫu
+└── tests/                # test unit, lifecycle, và contract theo provider
 ```
 
-For HTTP features, `schema.py` owns request/response contracts, `router.py` owns
-HTTP translation, and `service.py` owns reusable application or pure business
-logic when that logic exists. Do not create empty layers just to match this
-shape.
+Với các HTTP feature, `schema.py` sở hữu contract request/response,
+`router.py` sở hữu việc dịch HTTP, và `service.py` sở hữu logic
+application/pure business khi logic đó tồn tại. Không tạo layer rỗng chỉ để
+khớp hình dạng này.
 
-Infrastructure adapters such as `encoders/` and `vector_store/` must not import
-FastAPI. Their models describe internal method inputs/outputs; feature schemas
-describe the external HTTP contract.
+Các adapter hạ tầng như `encoders/` và `vector_store/` không được import
+FastAPI. Model của chúng mô tả input/output nội bộ của method; feature schema
+mô tả contract HTTP bên ngoài.
 
-## Configuration
+## Cấu hình
 
-`AppConfig` is the runtime settings object. It merges two sources:
+`AppConfig` là đối tượng settings runtime, đọc hoàn toàn từ môi trường hoặc
+`.env`: host, port, `VECTOR_STORE_PROVIDER` (mặc định `milvus`),
+`VECTOR_STORE_COLLECTION`, `QDRANT_URL`, và `MILVUS_URI`. Không có merge YAML
+cho các giá trị này — lựa chọn vector store là một giá trị deployment, không
+phải một quyết định thiết kế đã review.
 
-| Source | Owns |
-|---|---|
-| Environment or `.env` | machine/deployment values such as host, port, Qdrant URL, and Milvus URI |
-| `config/*.yaml` | reviewed project decisions such as provider, collection, model, and metric |
+`config/embedding.yaml` (đường dẫn đặt bởi `EMBEDDING_CONFIG_PATH`) là nguồn
+YAML duy nhất còn lại, và nó chỉ scope cho encoder: model đã chọn, dimension,
+device, và đường dẫn checkpoint/tokenizer, được `encoders/config.py` load.
+Metric của vector vẫn là một quyết định provisioning/benchmark cho đến khi mã
+runtime có consumer thật sự cho nó.
 
-Provider URLs must not be added to YAML. Vector metric remains a provisioning
-and benchmark decision until runtime code has a real consumer for it.
+## Vòng đời vector store
 
-## Vector-store lifecycle
+`main.lifespan` chọn provider đã cấu hình, tạo một client và một adapter
+`VectorStore` cho mỗi worker FastAPI, gán vào `app.state.vector_store`, và
+đóng client khi shutdown.
 
-`main.lifespan` selects the configured provider, creates one client and one
-`VectorStore` adapter per FastAPI worker, assigns it to
-`app.state.vector_store`, and closes the client at shutdown.
-
-The contract intentionally contains only current behavior:
+Contract cố tình chỉ chứa hành vi hiện tại:
 
 ```python
 class VectorStore(Protocol):
@@ -70,35 +73,41 @@ class VectorStore(Protocol):
     def ingest(self, points: Sequence[VectorPoint]) -> None: ...
 ```
 
-Both Qdrant and Milvus implement this contract. Provider SDK response shapes
-are normalized to the schemas in `vector_store/schemas.py`; consumers should
-only see `VectorPoint`, `SearchHit`, and their neutral fields.
+Cả Qdrant và Milvus đều implement contract này. Response shape của provider
+SDK được chuẩn hóa về schema trong `vector_store/schemas.py`; consumer chỉ nên
+thấy `VectorPoint`, `SearchHit`, và các field trung lập của chúng.
 
-Current boundaries:
+Ranh giới hiện tại:
 
-- The shared store is initialized but no endpoint calls `search()` or
-  `ingest()` yet.
-- Collections must already exist. Runtime code does not create, recreate, or
-  drop them.
-- Ingest is one application batch, not a GPU/multi-batch orchestration layer.
-- Milvus calls `flush()` after ingest so the next request observes the write
-  under the tested default-consistency baseline.
-- Search/ingest-specific ports should only be split when separate consumers
-  actually need narrower dependencies.
+- `vector/router.py` expose `POST /api/vector/ingest` và
+  `POST /api/vector/search-similarity`, gọi thẳng `search()`/`ingest()` với
+  vector do caller cung cấp. Cả hai route đều không encode gì; vẫn chưa có
+  endpoint nào đi từ ảnh/text thô sang vector (xem các placeholder ở
+  `embedding/router.py`).
+- Collection phải đã tồn tại sẵn. Mã runtime không tạo, tạo lại, hay xóa
+  chúng.
+- Ingest là một batch application, không phải một lớp điều phối
+  GPU/multi-batch.
+- Milvus gọi `flush()` sau ingest để request tiếp theo thấy được write dưới
+  baseline default-consistency đã kiểm chứng.
+- Port riêng cho search/ingest chỉ nên tách khi có consumer riêng thực sự cần
+  dependency hẹp hơn.
 
-Provider behavior is checked through the same contract suite in
-`tests/contract/test_vector_store.py`; lifespan ownership and cleanup are checked
-in `tests/test_main.py`.
+Hành vi của provider được kiểm tra qua cùng bộ contract test ở
+`tests/contract/test_vector_store.py`; việc sở hữu và dọn dẹp lifespan được
+kiểm tra ở `tests/test_main.py`.
 
-## Routes
+## Route
 
-| Method | Path | State |
+| Method | Path | Trạng thái |
 |---|---|---|
-| `GET` | `/api/health` | working |
-| `GET` | `/api/search/tasks` | working |
-| `GET` | `/api/search/shots` | working |
-| `POST` | `/api/search/query` | working against sample JSON |
-| `POST` | `/api/search/submit` | working locally |
+| `GET` | `/api/health` | hoạt động |
+| `GET` | `/api/search/tasks` | hoạt động |
+| `GET` | `/api/search/shots` | hoạt động |
+| `POST` | `/api/search/query` | hoạt động trên JSON mẫu |
+| `POST` | `/api/search/submit` | hoạt động cục bộ |
+| `POST` | `/api/vector/ingest` | hoạt động, nhận vector đã tính sẵn |
+| `POST` | `/api/vector/search-similarity` | hoạt động, nhận vector đã tính sẵn |
 | `POST` | `/api/ocr/extract` | placeholder |
 | `POST` | `/api/asr/transcribe` | placeholder |
 | `POST` | `/api/object-detection/detect` | placeholder |
@@ -107,6 +116,6 @@ in `tests/test_main.py`.
 | `POST` | `/api/embedding/search` | placeholder |
 | `POST` | `/api/embedding/index` | placeholder |
 
-When a placeholder becomes real, construct long-lived model/database resources
-in lifespan and pass them to the consumer. Keep request validation and response
-mapping in the router; keep provider-specific translation inside its adapter.
+Khi một placeholder trở thành thật, hãy tạo resource model/database sống lâu
+trong lifespan rồi truyền cho consumer. Giữ validation request và mapping
+response ở router; giữ việc dịch riêng theo provider bên trong adapter của nó.

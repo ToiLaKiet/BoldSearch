@@ -1,103 +1,119 @@
-# Architecture
+# Kiến trúc
 
-Status: current implementation plus agreed near-term boundaries. Claims marked
-**verified** are backed by the current tree; target items are not implemented.
+Trạng thái: hiện trạng triển khai cộng với các ranh giới ngắn hạn đã thống nhất.
+Các mục đánh dấu **verified** được xác nhận bởi cây mã nguồn hiện tại; các mục
+target chưa được triển khai.
 
-## Current system
+## Hệ thống hiện tại
 
-BoldSearch is a modular monolith: one FastAPI backend and one Vite React UI.
+BoldSearch là một modular monolith: một backend FastAPI và một UI Vite React.
 
-| Capability | Current state | Evidence |
+| Năng lực | Trạng thái hiện tại | Bằng chứng |
 |---|---|---|
-| Search | Lexical, object, color, and temporal scoring over sample `shots.json`. | `app/backend/search/` |
-| Embedding | Encoder adapters exist; HTTP routes are placeholders. | `app/backend/encoders/`, `app/backend/embedding/` |
-| OCR, ASR, detection | HTTP contracts are placeholders. | corresponding backend feature packages |
-| Vector store | One neutral `VectorStore` Protocol with Qdrant and Milvus adapters and shared contract tests. | `app/backend/vector_store/`, `app/backend/tests/contract/` |
-| Vector-store lifecycle | One configured client/adapter is opened per FastAPI worker and stored on `app.state`; no endpoint consumes it yet. | `app/backend/main.py`, `app/backend/tests/test_main.py` |
-| Frontend | React prototype using the Vite `/api` proxy. | `app/frontend/` |
-| Benchmark/offline ingest | Not implemented. | technical plan only |
+| Search | Chấm điểm lexical, object, color, temporal trên `shots.json` mẫu. | `app/backend/search/` |
+| Embedding | Encoder adapter đã có; các route HTTP (encode, search, index) vẫn là placeholder. | `app/backend/encoders/`, `app/backend/embedding/` |
+| OCR, ASR, detection | Contract HTTP là placeholder. | các feature package backend tương ứng |
+| Vector store | Một Protocol `VectorStore` trung lập với adapter Qdrant và Milvus, cùng bộ contract test dùng chung. | `app/backend/vector_store/`, `app/backend/tests/contract/` |
+| Vòng đời vector store | Một client/adapter đã cấu hình được mở mỗi worker FastAPI, lưu trên `app.state`, đóng khi shutdown. | `app/backend/main.py`, `app/backend/tests/test_main.py` |
+| Ingest/search vector đã tính sẵn | `/api/vector/ingest` và `/api/vector/search-similarity` đọc/ghi thẳng vào store dùng chung; caller tự cung cấp vector, bề mặt này không encode gì cả. | `app/backend/vector/`, `app/backend/tests/test_vector_router.py` |
+| Frontend | Prototype React dùng proxy `/api` của Vite. | `app/frontend/` |
+| Benchmark/offline ingest | Chưa triển khai. | chỉ có kế hoạch kỹ thuật |
 
-Source diagram: `architecture/system-overview.mmd`.
+Sơ đồ nguồn: `architecture/system-overview.mmd`.
 
-## Boundaries
+## Ranh giới
 
 ```text
 browser
-  -> FastAPI router             external HTTP schema and translation
-  -> application/pure logic     retrieval and result shaping
-  -> provider-neutral contract  VectorStore / encoder behavior
-  -> adapter                    Qdrant, Milvus, or model SDK
+  -> FastAPI router             schema HTTP bên ngoài và dịch dữ liệu
+  -> application/pure logic     truy vấn và định hình kết quả
+  -> provider-neutral contract  hành vi VectorStore / encoder
+  -> adapter                    Qdrant, Milvus, hoặc model SDK
 ```
 
-- Pydantic feature schemas are external HTTP contracts.
-- Vector-store dataclasses are internal method inputs and outputs.
-- `VectorStore` is a structural Protocol because consumers need behavior, not
-  shared implementation or lifecycle hooks.
-- Qdrant and Milvus adapters own reusable client and collection state.
-- Pure SDK-to-neutral transformations stay as functions or private methods; a
-  class is warranted only when it uses adapter state.
-- Provider field names and SDK response objects must not cross the adapter
-  boundary.
+- Pydantic feature schema là contract HTTP bên ngoài.
+- Dataclass của vector-store là input/output nội bộ của method.
+- `VectorStore` là một structural Protocol vì consumer cần hành vi, không cần
+  implementation dùng chung hay lifecycle hook.
+- Adapter Qdrant và Milvus sở hữu state client và collection tái sử dụng được.
+- Các phép biến đổi thuần từ SDK sang dạng trung lập giữ nguyên là function
+  hoặc private method; chỉ dùng class khi nó thực sự cần state của adapter.
+- Tên field của provider và response object của SDK không được vượt qua ranh
+  giới adapter.
 
-## Runtime ownership
+## Sở hữu runtime
 
-FastAPI lifespan is the composition root for the current process:
+FastAPI lifespan là composition root cho tiến trình hiện tại:
 
-1. Read the provider and collection from `AppConfig`.
-2. Create the selected SDK client after application startup begins.
-3. Wrap it in one `VectorStore` adapter and expose it through `app.state`.
-4. Close the client during shutdown.
+1. Đọc provider và collection từ `AppConfig`.
+2. Tạo SDK client đã chọn sau khi application bắt đầu khởi động.
+3. Bọc nó trong một adapter `VectorStore` và expose qua `app.state`.
+4. Đóng client khi shutdown.
 
-The provider branch belongs only in this composition root. Search and ingest
-consumers should receive the neutral store and must not repeat the
-Qdrant/Milvus selection.
+Nhánh rẽ theo provider chỉ thuộc về composition root này. Consumer của
+search/ingest chỉ nên nhận store trung lập, không được lặp lại việc chọn
+Qdrant/Milvus.
 
-The store is intentionally not split into search and ingest ports yet because
-there is only one lifecycle and no real consumer requiring a narrower surface.
-Revisit that decision if search and ingest move to separate processes or acquire
-different permissions/scaling needs.
+Store cố tình chưa được tách thành port search và ingest riêng vì hiện chỉ có
+một vòng đời và chưa có consumer thực sự nào cần bề mặt hẹp hơn. Xem lại quyết
+định này nếu search và ingest chuyển sang tiến trình riêng hoặc có nhu cầu
+quyền/scale khác nhau.
 
-## Configuration ownership
+## Sở hữu cấu hình
 
-Environment settings hold deployment-specific values such as service URLs.
-Versioned YAML holds reviewed experiment/design decisions such as selected
-provider, collection, encoder, and metric. `AppConfig` is the single merged
-runtime settings object; provider-specific config subclasses are unnecessary
-until their validation or consumers materially diverge.
+`AppConfig` (`app_config.py`) đọc thẳng các cấu hình deployment/runtime từ môi
+trường hoặc `.env`: provider vector store, collection, và các URL dịch vụ đều
+mặc định và override tại đây — không có merge YAML cho các giá trị này.
+YAML được version hóa chỉ dành cho các quyết định encoder/model đã review
+(`config/embedding.yaml`, được `encoders/config.py` load); nó không chứa cấu
+hình vector store. Config subclass riêng theo provider là không cần thiết cho
+đến khi validation hoặc consumer của chúng thực sự phân hóa.
 
-## Current and target flows
+## Luồng hiện tại và luồng mục tiêu
 
-Current search:
+Search hiện tại:
 
-1. `POST /api/search/query` validates `SearchRequest`.
-2. The router loads sample shots and calls pure scoring logic.
-3. Ranked results are returned through the HTTP response schema.
+1. `POST /api/search/query` validate `SearchRequest`.
+2. Router load shot mẫu và gọi logic chấm điểm thuần.
+3. Kết quả xếp hạng được trả về qua response schema HTTP.
 
-Target vector-backed search:
+Ingest/search vector đã tính sẵn hiện tại (`vector/router.py`):
 
-1. A use case receives the shared `VectorStore` and selected encoder.
-2. The encoder creates a vector from the locked model/checkpoint.
-3. `VectorStore.search()` returns provider-neutral `SearchHit` values.
-4. The use case groups keyframes, shapes results, and the router maps them to
-   the public response schema.
+1. `POST /api/vector/ingest` validate một batch `VectorPointPayload` (vector
+   do caller cung cấp cộng id/source/metadata) và gọi thẳng
+   `VectorStore.ingest()`.
+2. `POST /api/vector/search-similarity` validate một `query_vector` do caller
+   cung cấp, gọi `VectorStore.search()`, và map giá trị `SearchHit` sang
+   response schema công khai.
+3. Cả hai route đều không encode gì cả — ai tạo ra vector (hiện là một pipeline
+   keyframe offline) thì người đó sở hữu model.
 
-Target ingestion remains deliberately small in the current baseline:
+Search dựa trên vector mục tiêu (vẫn chưa được nối):
 
-1. A consumer creates provider-neutral `VectorPoint` values.
-2. `VectorStore.ingest()` writes one batch and makes it searchable.
-3. Provisioning, GPU batching, artifact orchestration, and collection rebuilds
-   remain outside the adapter until their workflows are designed.
+1. Một use case nhận `VectorStore` dùng chung và encoder đã chọn.
+2. Encoder tạo vector từ model/checkpoint đã khóa.
+3. `VectorStore.search()` trả về giá trị `SearchHit` trung lập.
+4. Use case gom nhóm keyframe, định hình kết quả, và router `embedding` map
+   sang response schema công khai.
 
-## Guardrails
+Ingest từ media thô vẫn cố tình nằm ngoài phạm vi baseline hiện tại:
 
-- Do not open provider connections at module import time.
-- Do not let HTTP code import provider SDK types.
-- Do not let the API create, recreate, or drop collections.
-- Do not mix vectors from different model/checkpoint identities.
-- Do not compare provider or model scores without normalized semantics and a
-  reproducible benchmark.
-- Do not add base classes, factories, loaders, or narrower ports until a current
-  consumer needs the extra behavior.
+1. Một consumer tạo giá trị `VectorPoint` trung lập từ một encoder, không phải
+   từ vector do caller cung cấp.
+2. `VectorStore.ingest()` ghi một batch và làm nó searchable.
+3. Provisioning, GPU batching, điều phối artifact, và rebuild collection vẫn
+   nằm ngoài adapter cho đến khi workflow của chúng được thiết kế.
 
-Evaluation gates and unresolved model/provider decisions live in
+## Guardrail
+
+- Không mở kết nối provider tại thời điểm import module.
+- Không để mã HTTP import type của provider SDK.
+- Không để API tạo, tạo lại, hoặc xóa collection.
+- Không trộn vector từ các model/checkpoint khác identity.
+- Không so sánh điểm số giữa provider hoặc model nếu chưa chuẩn hóa semantics
+  và chưa có benchmark tái lập được.
+- Không thêm base class, factory, loader, hay port hẹp hơn cho đến khi một
+  consumer hiện tại thực sự cần hành vi đó.
+
+Các gate đánh giá và quyết định model/provider chưa chốt nằm ở
 `docs/technical/00-embedding-vector-store-evaluation.md`.

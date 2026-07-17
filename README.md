@@ -1,62 +1,67 @@
 # BoldSearch
 
-BoldSearch is the HCM AI Challenge 2026 video-retrieval workspace. The current
-prototype combines a FastAPI backend and a Vite React UI for Known Item Search
-(KIS) and Visual Known Item Search (VKIS).
+BoldSearch là workspace video-retrieval cho HCM AI Challenge 2026. Prototype
+hiện tại kết hợp một backend FastAPI và một UI Vite React cho Known Item
+Search (KIS) và Visual Known Item Search (VKIS).
 
-## Current state
+## Trạng thái hiện tại
 
-- Lexical, object, color, and temporal search runs against sample `shots.json`.
-- OCR, ASR, object detection, and embedding HTTP routes are placeholders.
-- Qdrant and Milvus implement one provider-neutral `VectorStore` contract for
-  search and single-batch ingest.
-- FastAPI lifespan opens the configured vector-store client once per worker and
-  closes it at shutdown. No endpoint consumes that store yet.
-- Encoder evaluation, immutable embedding artifacts, vector-store benchmarking,
-  and offline multi-batch ingest are still planned work.
+- Search lexical, object, color, và temporal chạy trên `shots.json` mẫu.
+- Route HTTP cho OCR, ASR, object detection, và embedding vẫn là placeholder.
+- Qdrant và Milvus implement chung một contract `VectorStore` trung lập cho
+  search và ingest theo batch đơn.
+- `/api/vector/ingest` và `/api/vector/search-similarity` đã hoạt động, đọc/
+  ghi thẳng store dùng chung với vector do caller cung cấp — chưa có encoder
+  nào ở giữa.
+- FastAPI lifespan mở client vector-store đã cấu hình một lần cho mỗi worker
+  và đóng lại khi shutdown.
+- Đánh giá encoder, artifact embedding bất biến, benchmark vector-store, và
+  ingest multi-batch offline vẫn là công việc đang được lên kế hoạch.
 
-The UI direction was inspired by
-[VISIONE](https://github.com/aimh-lab/visione), but this repository owns its own
-runtime and architecture decisions.
+Hướng thiết kế UI lấy cảm hứng từ
+[VISIONE](https://github.com/aimh-lab/visione), nhưng repo này tự sở hữu
+runtime và quyết định kiến trúc riêng.
 
-## Repository layout
+## Cấu trúc repository
 
 ```text
 .
 ├── app/
-│   ├── backend/       # FastAPI service, tests, encoders, vector-store adapters
-│   └── frontend/      # Vite React prototype
-├── architecture/      # Mermaid sources and exported diagrams
+│   ├── backend/       # dịch vụ FastAPI, test, encoder, adapter vector-store
+│   └── frontend/      # prototype Vite React
+├── architecture/      # nguồn Mermaid và diagram đã export
 ├── docs/
 │   ├── ARCHITECTURE.md
 │   ├── GIT_CONVENTION.md
-│   └── technical/     # implementation plans and evaluation gates
-├── AGENTS.md          # local engineering instructions
-└── fg-clip.ipynb      # exploratory notebook
+│   └── technical/     # kế hoạch triển khai và evaluation gate
+├── AGENTS.md          # hướng dẫn kỹ thuật nội bộ
+└── fg-clip.ipynb      # notebook thử nghiệm
 ```
 
-Documentation ownership:
+Sở hữu tài liệu:
 
-- This README: repository overview and first run.
-- `app/backend/README.md`: backend setup, configuration, API, and runtime notes.
-- `docs/ARCHITECTURE.md`: verified current boundaries and agreed target flow.
-- `docs/technical/*`: detailed plans, evidence, and unresolved evaluation gates.
+- README này: tổng quan repository và chạy lần đầu.
+- `app/backend/README.md`: setup backend, cấu hình, API, và ghi chú runtime.
+- `docs/ARCHITECTURE.md`: ranh giới hiện tại đã xác minh và luồng mục tiêu đã
+  thống nhất.
+- `docs/technical/*`: kế hoạch chi tiết, bằng chứng, và evaluation gate chưa
+  chốt.
 
-Do not add another README unless a component has an independent setup or
-release lifecycle that cannot be explained by one of these documents.
+Không thêm README khác trừ khi một component có setup/release lifecycle độc
+lập mà không tài liệu nào trong số này giải thích được.
 
-## Run locally
+## Chạy cục bộ
 
 Backend:
 
 ```bash
 cd app/backend
 uv sync
-cp .env.example .env  # optional; defaults target local services
+cp .env.example .env  # tùy chọn; mặc định trỏ tới service local
 uv run python main.py
 ```
 
-Frontend, in another terminal:
+Frontend, ở terminal khác:
 
 ```bash
 cd app/frontend
@@ -64,17 +69,17 @@ npm install
 npm run dev
 ```
 
-Open `http://localhost:5173`. Vite proxies `/api` to
-`http://127.0.0.1:8000`; FastAPI exposes Swagger UI at
+Mở `http://localhost:5173`. Vite proxy `/api` sang
+`http://127.0.0.1:8000`; FastAPI expose Swagger UI tại
 `http://localhost:8000/docs`.
 
-Starting the backend also connects to the provider selected by
-`VECTOR_STORE_PROVIDER`. Provision the configured collection or use the
-contract-test fixtures before exercising vector-store behavior.
+Khởi động backend cũng đồng thời kết nối tới provider được chọn bởi
+`VECTOR_STORE_PROVIDER`. Hãy provision collection đã cấu hình hoặc dùng
+fixture của contract test trước khi thao tác với hành vi vector-store.
 
-## Development
+## Phát triển
 
-Backend dependencies and checks:
+Dependency và check cho backend:
 
 ```bash
 cd app/backend
@@ -82,13 +87,13 @@ uv sync
 uv run pytest
 ```
 
-Frontend check:
+Check cho frontend:
 
 ```bash
 cd app/frontend
 npm run build
 ```
 
-Architecture details live in `docs/ARCHITECTURE.md`; the active embedding and
-vector-store evaluation gates live in
+Chi tiết kiến trúc nằm ở `docs/ARCHITECTURE.md`; evaluation gate đang hoạt
+động cho embedding và vector-store nằm ở
 `docs/technical/00-embedding-vector-store-evaluation.md`.
