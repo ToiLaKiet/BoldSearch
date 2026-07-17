@@ -12,7 +12,13 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Request
 
-from vector import schema
+from vector.schema import (
+    IngestRequest,
+    IngestResponse,
+    SearchSimilarityRequest,
+    SearchSimilarityResponse,
+    SimilarityMatch,
+)
 from vector_store.ports import VectorStore
 from vector_store.schemas import VectorPoint
 
@@ -24,9 +30,9 @@ def get_vector_store(request: Request) -> VectorStore:
     return request.app.state.vector_store
 
 
-@router.post("/ingest", response_model=schema.IngestResponse)
+@router.post("/ingest", response_model=IngestResponse)
 def ingest(
-    body: schema.IngestRequest,
+    body: IngestRequest,
     store: VectorStore = Depends(get_vector_store),
 ):
     """Insert or replace precomputed points, keyed by their stable id."""
@@ -40,20 +46,20 @@ def ingest(
         for point in body.points
     ]
     store.ingest(points)
-    return schema.IngestResponse(ingested=len(points))
+    return IngestResponse(ingested=len(points))
 
 
-@router.post("/search-similarity", response_model=schema.SearchSimilarityResponse)
+@router.post("/search-similarity", response_model=SearchSimilarityResponse)
 def search_similarity(
-    body: schema.SearchSimilarityRequest,
+    body: SearchSimilarityRequest,
     store: VectorStore = Depends(get_vector_store),
 ):
     """Rank stored vectors against one precomputed query vector."""
     hits = store.search(body.query_vector, limit=body.top_k)
-    return schema.SearchSimilarityResponse(
+    return SearchSimilarityResponse(
         top_k=body.top_k,
         matches=[
-            schema.SimilarityMatch(
+            SimilarityMatch(
                 id=hit.id,
                 source_id=hit.source_id,
                 score=hit.score,
