@@ -19,6 +19,7 @@ from ocr.router import router as ocr_router
 from asr.router import router as asr_router
 from object_detection.router import router as object_detection_router
 from embedding.router import router as embedding_router
+from vector.router import router as vector_router
 
 
 # ── Application lifecycle ────────────────────────────────────────────
@@ -77,6 +78,7 @@ app.include_router(ocr_router, prefix=app_config.API_PREFIX)
 app.include_router(asr_router, prefix=app_config.API_PREFIX)
 app.include_router(object_detection_router, prefix=app_config.API_PREFIX)
 app.include_router(embedding_router, prefix=app_config.API_PREFIX)
+app.include_router(vector_router, prefix=app_config.API_PREFIX)
 
 # ── Global health endpoint ───────────────────────────────────
 
