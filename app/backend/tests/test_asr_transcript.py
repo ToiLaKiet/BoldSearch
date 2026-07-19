@@ -31,7 +31,7 @@ def test_keyframe_contract_uses_direct_timestamp_and_frame_id():
     )
     assert record.frame_id == "002"
     assert record.timestamp == 83.0
-    assert record.model_dump()["img_path"] == "002.png"
+    assert record.img_path == "002.png"
 
 
 def test_segment_contract_includes_video_id_and_text():
@@ -46,7 +46,9 @@ def test_segment_contract_includes_video_id_and_text():
 
 
 def test_keyframe_record_is_immutable():
-    record = KeyframeRecord(video_id="v1", frame_id="002", timestamp=83.0)
+    record = KeyframeRecord(
+        video_id="v1", frame_id="002", timestamp=83.0, img_path="002.png"
+    )
     with pytest.raises(ValidationError):
         record.frame_id = "003"  # type: ignore[misc]
 

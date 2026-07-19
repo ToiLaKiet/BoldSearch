@@ -59,7 +59,8 @@ giá trị trả về là `null`.
 }
 ```
 
-Các field ngoài `video_id`, `frame_id`, `timestamp` được giữ nguyên.
+`video_id`, `frame_id`, `timestamp` và `img_path` là các field bắt buộc. Metadata
+khác từ AutoShot vẫn được giữ nguyên.
 
 ### 3.3. Keyframe output
 
@@ -97,12 +98,14 @@ Request:
     {
       "video_id": "L21_V91",
       "frame_id": "001",
-      "timestamp": 60.0
+      "timestamp": 60.0,
+      "img_path": "L21_V91/001.png"
     },
     {
       "video_id": "L21_V91",
       "frame_id": "002",
-      "timestamp": 83.0
+      "timestamp": 83.0,
+      "img_path": "L21_V91/002.png"
     }
   ]
 }
@@ -128,12 +131,14 @@ Response `200`:
       "video_id": "L21_V91",
       "frame_id": "001",
       "timestamp": 60.0,
+      "img_path": "L21_V91/001.png",
       "text": "Tụi t là BoldWarriors"
     },
     {
       "video_id": "L21_V91",
       "frame_id": "002",
       "timestamp": 83.0,
+      "img_path": "L21_V91/002.png",
       "text": "Tụi t là BoldWarriors"
     }
   ],
@@ -185,6 +190,7 @@ normalization → ASR → keyframe mapping.
 |---|---:|---|
 | Language khác `vi` | 422 | `ASR_LANGUAGE_UNSUPPORTED` |
 | Thiếu hoặc rỗng `video_id` | 422 | FastAPI/Pydantic validation detail |
+| Keyframe thiếu hoặc rỗng `img_path` | 422 | FastAPI/Pydantic validation detail |
 | Chưa inject media resolver | 503 | `MEDIA_RESOLVER_UNAVAILABLE` |
 | Resolver không tìm thấy media | 404 | `MEDIA_NOT_FOUND` |
 | ffmpeg lỗi, timeout hoặc không có trên PATH | 422 | `AUDIO_NORMALIZATION_FAILED` |
@@ -199,7 +205,7 @@ liệu trước khi vào router.
 
 - **FR-ASR-01:** Chạy model một lần cho mỗi request/video.
 - **FR-ASR-02:** Trả segment có `video_id`, `start`, `end`, `text`.
-- **FR-ASR-03:** Nhận keyframe có `video_id`, `frame_id`, `timestamp`.
+- **FR-ASR-03:** Nhận keyframe có `video_id`, `frame_id`, `timestamp`, `img_path`.
 - **FR-ASR-04:** Gắn đúng một `text | null` vào mỗi keyframe bằng `[start, end)`.
 - **FR-ASR-05:** Giữ thứ tự và metadata ngoài các field bắt buộc.
 - **FR-ASR-06:** Dọn temporary WAV sau cả success lẫn failure.

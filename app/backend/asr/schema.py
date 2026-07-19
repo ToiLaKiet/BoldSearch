@@ -51,6 +51,7 @@ class KeyframeRecord(BaseModel):
     video_id: str
     frame_id: str
     timestamp: float = Field(description="Time from the start of the video, in seconds.")
+    img_path: str = Field(min_length=1, description="Path to the extracted keyframe image.")
 
 
 class KeyframeWithText(BaseModel):
@@ -61,6 +62,7 @@ class KeyframeWithText(BaseModel):
     video_id: str
     frame_id: str
     timestamp: float = Field(description="Time from the start of the video, in seconds.")
+    img_path: str = Field(min_length=1, description="Path to the extracted keyframe image.")
     text: str | None = None
 
 

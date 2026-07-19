@@ -91,8 +91,10 @@ class TestTranscribeEndpoint:
             "video_id",
             "frame_id",
             "timestamp",
+            "img_path",
             "text",
         }
+        assert "img_path" in keyframe_schema["required"]
 
     def test_transcribe_with_video_id_resolver(self, app_with_transcriber):
         app_with_transcriber.state.asr_transcriber = _FakeTranscriber(
@@ -111,8 +113,18 @@ class TestTranscribeEndpoint:
             "video_id": "v1",
             "language": "vi",
             "keyframes": [
-                {"video_id": "v1", "frame_id": "001", "timestamp": 1.0},
-                {"video_id": "v1", "frame_id": "002", "timestamp": 3.0},
+                {
+                    "video_id": "v1",
+                    "frame_id": "001",
+                    "timestamp": 1.0,
+                    "img_path": "v1/001.png",
+                },
+                {
+                    "video_id": "v1",
+                    "frame_id": "002",
+                    "timestamp": 3.0,
+                    "img_path": "v1/002.png",
+                },
             ],
         })
         assert response.status_code == 200
@@ -129,10 +141,35 @@ class TestTranscribeEndpoint:
             }
         ]
         assert data["keyframes"] == [
-            {"video_id": "v1", "frame_id": "001", "timestamp": 1.0, "text": "xin chào"},
-            {"video_id": "v1", "frame_id": "002", "timestamp": 3.0, "text": None},
+            {
+                "video_id": "v1",
+                "frame_id": "001",
+                "timestamp": 1.0,
+                "img_path": "v1/001.png",
+                "text": "xin chào",
+            },
+            {
+                "video_id": "v1",
+                "frame_id": "002",
+                "timestamp": 3.0,
+                "img_path": "v1/002.png",
+                "text": None,
+            },
         ]
         assert "unmatched_count" not in data
+
+    def test_transcribe_requires_keyframe_img_path(self, app_with_transcriber):
+        response = TestClient(app_with_transcriber).post(
+            "/api/asr/transcribe",
+            json={
+                "video_id": "v1",
+                "keyframes": [
+                    {"video_id": "v1", "frame_id": "001", "timestamp": 1.0}
+                ],
+            },
+        )
+
+        assert response.status_code == 422
 
     def test_transcribe_rejects_non_vietnamese(self, app_with_transcriber):
         client = TestClient(app_with_transcriber)
