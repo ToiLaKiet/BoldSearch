@@ -4,10 +4,15 @@ BoldSearcher — FastAPI entry point.
 
 from __future__ import annotations
 
+import logging
+from contextlib import asynccontextmanager
+from logging import getLogger
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app_config import app_config
+from asr.chunkformer import CHECKPOINT, REVISION, ChunkFormerTranscriber
 
 # ── Module routers ───────────────────────────────────────────────────
 from search.router import router as search_router
@@ -16,12 +21,39 @@ from asr.router import router as asr_router
 from object_detection.router import router as object_detection_router
 from embedding.router import router as embedding_router
 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)-8s %(name)s: %(message)s",
+    datefmt="%H:%M:%S",
+)
+
+logger = getLogger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Load the ASR transcriber on startup and release it on shutdown."""
+    try:
+        app.state.asr_transcriber = ChunkFormerTranscriber(app_config.ASR_DEVICE)
+        logger.info(
+            "ASR transcriber configured (checkpoint=%s, revision=%s)",
+            CHECKPOINT,
+            REVISION,
+        )
+    except Exception as exc:
+        logger.warning("ASR transcriber not available: %s", exc)
+        app.state.asr_transcriber = None
+
+    yield
+    app.state.asr_transcriber = None
+
 
 # ── App factory ──────────────────────────────────────────────────────
 app = FastAPI(
     title=app_config.SYSTEM_NAME,
     description="Interactive video shot retrieval system for AI Challenge.",
     version="0.2.0",
+    lifespan=lifespan,
 )
 
 # ── CORS ─────────────────────────────────────────────────────

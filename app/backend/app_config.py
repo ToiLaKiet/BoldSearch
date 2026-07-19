@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -17,6 +18,9 @@ class AppConfig(BaseSettings):
     # ── Vector store ─────────────────────────────────────────────
     QDRANT_URL: str = "http://localhost:6333"
     MILVUS_URI: str = "http://localhost:19530"
+
+    # ── ASR ──────────────────────────────────────────────────────
+    ASR_DEVICE: str = "cpu"
 
     # ── Config files ─────────────────────────────────────────────
     VECTOR_STORE_CONFIG_PATH: str = "config/vector_store.yaml"
