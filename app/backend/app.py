@@ -3,13 +3,22 @@ from __future__ import annotations
 import json
 import math
 import re
+import shutil
+import uuid
 from pathlib import Path
 from typing import Any
 
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, send_from_directory
+
+from sam3_video import LocalSam3, process_video
 
 
 DATA_PATH = Path(__file__).resolve().parent / "data" / "shots.json"
+BACKEND_DIR = Path(__file__).resolve().parent
+REPO_ROOT = BACKEND_DIR.parents[1]
+SAM3_CHECKPOINT = REPO_ROOT / "models" / "sam3" / "sam3.pt"
+SAM3_RUNTIME_DIR = BACKEND_DIR / "runtime" / "sam3"
+sam3_model = LocalSam3(SAM3_CHECKPOINT)
 
 
 def create_app() -> Flask:
@@ -25,6 +34,58 @@ def create_app() -> Flask:
     @app.route("/api/health")
     def health():
         return jsonify({"status": "ok", "system": "BoldSearcher"})
+
+    @app.route("/api/sam3/status")
+    def sam3_status():
+        return jsonify(sam3_model.status())
+
+    @app.route("/api/sam3/run", methods=["POST", "OPTIONS"])
+    def sam3_run():
+        if request.method == "OPTIONS":
+            return ("", 204)
+        video = request.files.get("video")
+        prompt = str(request.form.get("prompt", "")).strip()
+        if not video or not video.filename:
+            return jsonify({"message": "Choose a video file."}), 400
+        if not prompt:
+            return jsonify({"message": "Enter a SAM3 text prompt."}), 400
+        current_status = sam3_model.status()
+        if not current_status["ready"]:
+            return jsonify({"message": current_status["reason"]}), 503
+        try:
+            sample_every = float(request.form.get("sampleEverySeconds", 8))
+            confidence = float(request.form.get("confidence", 0.5))
+            max_samples = int(request.form.get("maxSamples", 80))
+        except ValueError:
+            return jsonify({"message": "Sampling, confidence, and limit must be numbers."}), 400
+        if sample_every <= 0 or not 0 <= confidence <= 1 or not 1 <= max_samples <= 300:
+            return jsonify({"message": "Invalid sampling, confidence, or frame limit."}), 400
+
+        job_id = uuid.uuid4().hex
+        job_dir = SAM3_RUNTIME_DIR / job_id
+        upload_dir = job_dir / "upload"
+        result_dir = job_dir / "frames"
+        upload_dir.mkdir(parents=True)
+        suffix = Path(video.filename).suffix.lower() or ".mp4"
+        video_path = upload_dir / f"input{suffix}"
+        try:
+            video.save(video_path)
+            result = process_video(
+                sam3_model, video_path, result_dir, prompt, sample_every, confidence, max_samples
+            )
+        except (RuntimeError, ValueError) as exc:
+            shutil.rmtree(job_dir, ignore_errors=True)
+            return jsonify({"message": str(exc)}), 500
+
+        result["jobId"] = job_id
+        result["prompt"] = prompt
+        for item in result["matches"]:
+            item["url"] = f"/api/sam3/output/{job_id}/{item['frame']}"
+        return jsonify(result)
+
+    @app.route("/api/sam3/output/<job_id>/<path:filename>")
+    def sam3_output(job_id: str, filename: str):
+        return send_from_directory(SAM3_RUNTIME_DIR / job_id / "frames", filename)
 
     @app.route("/api/tasks")
     def tasks():
