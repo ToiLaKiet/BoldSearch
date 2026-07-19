@@ -1,0 +1,6 @@
+# Runtime inputs and outputs; do not put video, extracted frames, vectors, or
+# metadata generated from a video into a pull request.
+data/
+
+__pycache__/
+.pytest_cache/

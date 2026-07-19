@@ -1,0 +1,27 @@
+pipeline:
+  batch_size: 10
+frame_id:
+  zero_pad_width: 8
+indexer:
+  sample_every_frames: 25
+preliminary_dedup:
+  enabled: false
+  strategy: none
+autoshot:
+  root: /home/long/Documents/AIC/AutoShot
+  checkpoint: /home/long/Documents/AIC/AutoShot/ckpt_0_200_0.pth
+  threshold: 0.296
+  allow_fallback: false
+mapping:
+  overwrite_existing: false
+embedding:
+  provider: fgclip
+  model_id: qihoo360/fg-clip-large
+  model_version: fgclip_v1
+  batch_size: 10
+similarity:
+  threshold: 0.4
+  step: 2
+paths:
+  # Keep all mutable video artifacts inside this component.
+  data_root: ../data
