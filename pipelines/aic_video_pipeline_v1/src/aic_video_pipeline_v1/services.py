@@ -95,7 +95,8 @@ def detect_shots(video_id: str, path: Path, metadata: dict, cfg: dict) -> dict:
     return result
 
 
-def index_frames(video_id: str, shots: dict, interval: int, batch_size: int, width: int) -> list[FrameRecord]:
+def index_frames(video_id: str, shots: dict, interval: int,
+                 width: int) -> list[FrameRecord]:
     frames: list[FrameRecord] = []
     for shot in shots["shots"]:
         start, end = int(shot["frame_start"]), int(shot["frame_end"])
@@ -103,14 +104,10 @@ def index_frames(video_id: str, shots: dict, interval: int, batch_size: int, wid
         if not candidates or candidates[-1] != end:
             candidates.append(end)
         for index in candidates:
-            position = len(frames)
             frames.append(FrameRecord(video_id, f"{index:0{width}d}", index,
-                                      round(index / shots["fps"] * 1000), shot["shot_id"],
-                                      f"batch_{position // batch_size + 1:06d}", position % batch_size + 1))
-    unique = sorted({frame.frame_index: frame for frame in frames}.values(), key=lambda item: item.frame_index)
-    for position, frame in enumerate(unique):
-        frame.batch_id, frame.batch_position = f"batch_{position // batch_size + 1:06d}", position % batch_size + 1
-    return unique
+                                      round(index / shots["fps"] * 1000), shot["shot_id"]))
+    return sorted({frame.frame_index: frame for frame in frames}.values(),
+                  key=lambda item: item.frame_index)
 
 
 def extract_frames(path: Path, frames: list[FrameRecord], root: Path) -> None:
@@ -139,20 +136,6 @@ def extract_frames(path: Path, frames: list[FrameRecord], root: Path) -> None:
     frames[:] = [frame for frame in frames if frame.mapping_status == "EXTRACTED"]
 
 
-class HistogramEmbedder:
-    model_version = "histogram_v1"
-
-    def embed_batch(self, paths: list[Path]) -> list[np.ndarray]:
-        values = []
-        for path in paths:
-            image = cv2.imread(str(path))
-            if image is None:
-                raise ValueError(f"cannot read image: {path}")
-            hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
-            values.append(cv2.calcHist([hsv], [0, 1, 2], None, [8, 8, 8], [0, 180, 0, 256, 0, 256]).flatten().astype(np.float32))
-        return values
-
-
 class FGClipEmbedder:
     def __init__(self, model_id: str, model_version: str, model_path: str | None) -> None:
         self.model_id, self.model_version = model_id, model_version
@@ -175,22 +158,22 @@ class FGClipEmbedder:
         self.processor = AutoImageProcessor.from_pretrained(source, local_files_only=local_only)
         self.loaded = True
 
-    def embed_batch(self, paths: list[Path]) -> list[np.ndarray]:
+    def embed_frame(self, path: Path) -> np.ndarray:
         self._load()
-        images = [Image.open(path).convert("RGB") for path in paths]
-        pixels = self.processor(images=images, return_tensors="pt")["pixel_values"].to(self.device)
+        with Image.open(path) as source:
+            image = source.convert("RGB")
+        pixels = self.processor(images=[image], return_tensors="pt")["pixel_values"].to(self.device)
         with self.torch.inference_mode():
             features = self.model.get_image_features(pixels)
             features = features / features.norm(p=2, dim=-1, keepdim=True)
-        return [item.detach().float().cpu().numpy() for item in features]
+        return features[0].detach().float().cpu().numpy()
 
 
-def embed_frames(frames: list[FrameRecord], embedder, store: NpyVectorStore, batch_size: int) -> None:
-    for start in range(0, len(frames), batch_size):
-        group = frames[start:start + batch_size]
-        vectors = embedder.embed_batch([Path(frame.frame_path) for frame in group])
-        if len(vectors) != len(group):
-            raise ValueError("embedder output length differs from frame count")
-        for frame, vector in zip(group, vectors):
-            frame.vector_path = str(store.put(frame.video_id, frame.frame_id, vector))
-            frame.embedding_status = "EMBEDDED"
+def embed_frames(frames: list[FrameRecord], embedder: FGClipEmbedder,
+                 store: NpyVectorStore) -> None:
+    for frame in frames:
+        if not frame.frame_path:
+            raise ValueError("frame must have a PNG path before embedding")
+        vector = embedder.embed_frame(Path(frame.frame_path))
+        frame.vector_path = str(store.put(frame.video_id, frame.frame_id, vector))
+        frame.embedding_status = "EMBEDDED"

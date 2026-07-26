@@ -12,8 +12,6 @@ class FrameRecord:
     frame_index: int
     timestamp_ms: int
     shot_id: str
-    batch_id: str = ""
-    batch_position: int = 0
     preliminary_status: str = "KEPT"
     mapping_status: str = "PENDING"
     embedding_status: str = "PENDING"

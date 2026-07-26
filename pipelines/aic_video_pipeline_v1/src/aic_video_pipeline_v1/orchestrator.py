@@ -9,7 +9,7 @@ from typing import Any
 import yaml
 
 from .models import FrameRecord, validate_frame
-from .services import (FGClipEmbedder, HistogramEmbedder, detect_shots,
+from .services import (FGClipEmbedder, detect_shots,
                        embed_frames, extract_frames, index_frames, probe_video)
 from .similarity import apply_representative_similarity, remove_duplicate_artifacts
 from .storage import NpyVectorStore, atomic_json
@@ -38,13 +38,12 @@ class VideoPipelineV1:
         root = self._data_root() / "metadata" / video_id
         return root / "Shot.json", root / "Frame.json"
 
-    def _embedder(self, provider: str):
+    def _embedder(self) -> tuple[FGClipEmbedder, str]:
         cfg = self.config["embedding"]
-        if provider == "histogram":
-            return HistogramEmbedder(), "histogram_v1"
-        if provider == "fgclip":
-            return FGClipEmbedder(cfg["model_id"], cfg["model_version"], cfg.get("model_path")), cfg["model_version"]
-        raise ValueError(f"unsupported embedding provider: {provider}")
+        if cfg.get("provider") != "fgclip":
+            raise ValueError("embedding.provider must be fgclip")
+        return (FGClipEmbedder(cfg["model_id"], cfg["model_version"], cfg.get("model_path")),
+                cfg["model_version"])
 
     def _clean_video_outputs(self, video_id: str) -> None:
         # Only this V1 component's target is removed; the old pipeline is untouched.
@@ -55,14 +54,12 @@ class VideoPipelineV1:
                 shutil.rmtree(target)
 
     @staticmethod
-    def _save_frame_json(path: Path, video_id: str, source: Path, batch_size: int,
+    def _save_frame_json(path: Path, video_id: str, source: Path,
                          frames: list[FrameRecord]) -> None:
         atomic_json(path, {"video_id": video_id, "source_video_path": str(source),
-                           "batch_size": batch_size,
                            "frames": [frame.to_dict() for frame in frames]})
 
-    def run(self, video: Path, embedding_provider: str | None = None,
-            video_id: str | None = None) -> dict[str, Any]:
+    def run(self, video: Path, video_id: str | None = None) -> dict[str, Any]:
         video = video.expanduser().resolve()
         if video.suffix.lower() != ".mp4" or not video.is_file():
             raise ValueError(f"input must be an existing .mp4 file: {video}")
@@ -75,21 +72,19 @@ class VideoPipelineV1:
         shots = detect_shots(video_id, video, metadata, self.config["autoshot"])
         atomic_json(shot_path, {"video_id": video_id, "shots": shots["shots"]})
 
-        frames = index_frames(video_id, shots, int(self.config["indexer"]["sample_every_frames"]),
-                              int(self.config["pipeline"]["batch_size"]),
+        frames = index_frames(video_id, shots,
+                              int(self.config["indexer"]["sample_every_frames"]),
                               int(self.config["frame_id"]["zero_pad_width"]))
         extract_frames(video, frames, self._data_root() / "frames")
-        self._save_frame_json(frame_path, video_id, video, int(self.config["pipeline"]["batch_size"]), frames)
 
-        provider = embedding_provider or self.config["embedding"]["provider"]
-        embedder, version = self._embedder(provider)
+        embedder, version = self._embedder()
         store = NpyVectorStore(self._data_root() / "vectors", version)
-        embed_frames(frames, embedder, store, int(self.config["embedding"]["batch_size"]))
+        embed_frames(frames, embedder, store)
         summary = apply_representative_similarity(frames, store, float(self.config["similarity"]["threshold"]))
         remove_duplicate_artifacts(frames)
-        self._save_frame_json(frame_path, video_id, video, int(self.config["pipeline"]["batch_size"]), frames)
+        self._save_frame_json(frame_path, video_id, video, frames)
         self.validate(video_id)
-        return {"video_id": video_id, "embedding_provider": provider,
+        return {"video_id": video_id, "embedding_provider": "fgclip",
                 "frame_count": len(frames), "compared_count": summary.compared,
                 "kept_count": summary.kept, "duplicate_count": summary.duplicate,
                 "similarity_threshold": summary.threshold,
@@ -119,17 +114,12 @@ class VideoPipelineV1:
             raise ValueError("duplicate frame_id")
         for frame in frames:
             validate_frame(frame)
-            if frame.final_status == "KEPT":
-                if not frame.frame_path or not frame.vector_path:
-                    raise ValueError("KEPT frame must retain PNG and NPY")
-                if not Path(frame.frame_path).is_file() or not Path(frame.vector_path).is_file():
-                    raise ValueError("KEPT artifact is missing")
-                store.get(frame.vector_path)
-            if frame.final_status == "DUPLICATE":
-                if frame.frame_path or frame.vector_path:
-                    raise ValueError("DUPLICATE frame retains an artifact")
-                if frame.representative_frame_id not in by_id:
-                    raise ValueError("DUPLICATE representative is missing")
-                representative = by_id[frame.representative_frame_id]
-                if representative.final_status != "KEPT" or representative.shot_id != frame.shot_id:
-                    raise ValueError("DUPLICATE representative must be KEPT in the same shot")
+            if frame.final_status != "KEPT":
+                raise ValueError("Frame.json must contain only final KEPT frames")
+            if frame.representative_frame_id is not None:
+                raise ValueError("KEPT frame must not reference another representative")
+            if not frame.frame_path or not frame.vector_path:
+                raise ValueError("KEPT frame must retain PNG and NPY")
+            if not Path(frame.frame_path).is_file() or not Path(frame.vector_path).is_file():
+                raise ValueError("KEPT artifact is missing")
+            store.get(frame.vector_path)

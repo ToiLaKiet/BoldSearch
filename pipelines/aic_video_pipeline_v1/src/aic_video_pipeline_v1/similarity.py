@@ -54,6 +54,7 @@ def apply_representative_similarity(frames: list[FrameRecord], store: NpyVectorS
 
 
 def remove_duplicate_artifacts(frames: list[FrameRecord]) -> None:
+    """Delete DUPLICATE artifacts and remove their metadata records in-place."""
     for frame in frames:
         if frame.final_status != "DUPLICATE":
             continue
@@ -62,3 +63,4 @@ def remove_duplicate_artifacts(frames: list[FrameRecord]) -> None:
                 Path(text).unlink(missing_ok=True)
         frame.frame_path = None
         frame.vector_path = None
+    frames[:] = [frame for frame in frames if frame.final_status == "KEPT"]

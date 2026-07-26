@@ -16,13 +16,12 @@ def main() -> None:
     parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
     parser.add_argument("--video", type=Path)
     parser.add_argument("--video-id")
-    parser.add_argument("--embedding-provider", choices=["fgclip", "histogram"])
     args = parser.parse_args()
     pipeline = VideoPipelineV1.from_yaml(args.config)
     if args.command == "run":
         if not args.video:
             parser.error("run requires --video")
-        result = pipeline.run(args.video, args.embedding_provider, args.video_id)
+        result = pipeline.run(args.video, args.video_id)
     else:
         if not args.video_id:
             parser.error("validate requires --video-id")
