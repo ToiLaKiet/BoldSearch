@@ -1,104 +1,257 @@
-"""FG-CLIP image/text encoder backed by qihoo360/fg-clip-large."""
+# """FG-CLIP image/text encoder backed by qihoo360/fg-clip2-large."""
+
+# from __future__ import annotations
+
+# from typing import Optional
+
+# import numpy as np
+# import torch
+# from PIL import Image
+# from transformers import AutoImageProcessor, AutoModelForCausalLM, AutoTokenizer
+
+# from encoders.normalization import l2_normalize
+
+# MODEL_ID = "qihoo360/fg-clip2-large"
+# MODEL_REVISION = "4d1d5dc35c716902f07c172dbfc23b82a7bc6bf3"
+# EMBEDDING_DIM = 1024
+# MAX_TEXT_LENGTH = 64
+# TEXT_WALK_TYPE = "short"
+
+
+# class FGClipEncoder:
+#     """Owns FG-CLIP model state across requests."""
+
+#     model_id = MODEL_ID
+#     embedding_dim = EMBEDDING_DIM
+
+#     def __init__(self, device: Optional[str] = None) -> None:
+#         self.device = torch.device(device or _default_device())
+#         self._model = AutoModelForCausalLM.from_pretrained(
+#             MODEL_ID,
+#             revision=MODEL_REVISION,
+#             trust_remote_code=True,
+#         ).to(self.device)
+#         self._model.eval()
+#         self._tokenizer = AutoTokenizer.from_pretrained(
+#             MODEL_ID,
+#             revision=MODEL_REVISION,
+#         )
+#         self._image_processor = AutoImageProcessor.from_pretrained(
+#             MODEL_ID,
+#             revision=MODEL_REVISION,
+#         )
+
+#     def encode_texts(self, texts: list[str]) -> np.ndarray:
+#         text_input = self._tokenizer(
+#             texts,
+#             max_length=MAX_TEXT_LENGTH,
+#             padding="max_length",
+#             truncation=True,
+#             return_tensors="pt",
+#         ).to(self.device)
+
+#         with torch.no_grad():
+#             features = self._model.get_text_features(
+#                 **text_input,
+#                 walk_type=TEXT_WALK_TYPE,
+#             )
+#             features = l2_normalize(features)
+
+#         return features.cpu().float().numpy()
+
+#     def encode_images(self, images: list[Image.Image]) -> np.ndarray:
+#         rgb_images = [image.convert("RGB") for image in images]
+#         max_num_patches = max(_determine_max_num_patches(image) for image in rgb_images)
+#         image_input = self._image_processor(
+#             images=rgb_images,
+#             max_num_patches=max_num_patches,
+#             return_tensors="pt",
+#         ).to(self.device)
+
+#         with torch.no_grad():
+#             features = self._model.get_image_features(**image_input)
+#             features = l2_normalize(features)
+
+#         return features.cpu().float().numpy()
+
+
+# def _default_device() -> str:
+#     if torch.cuda.is_available():
+#         return "cuda"
+#     if torch.backends.mps.is_available():
+#         return "mps"
+#     return "cpu"
+
+
+# def _determine_max_num_patches(image: Image.Image) -> int:
+#     width, height = image.size
+#     patch_count = (width // 16) * (height // 16)
+#     if patch_count > 784:
+#         return 1024
+#     if patch_count > 576:
+#         return 784
+#     if patch_count > 256:
+#         return 576
+#     if patch_count > 128:
+#         return 256
+#     return 128
+"""FG-CLIP v1 image/text encoder backed by qihoo360/fg-clip-large."""
+
 from __future__ import annotations
+
+from typing import Optional, Sequence
 
 import numpy as np
 import torch
+import torch.nn.functional as F
 from PIL import Image
-from transformers import AutoImageProcessor, AutoModelForCausalLM, AutoTokenizer
+from transformers import (
+    AutoImageProcessor,
+    AutoModelForCausalLM,
+    AutoTokenizer,
+)
 
-from encoders.normalization import l2_normalize
+MODEL_PROVIDER = "fgclip"
+MODEL_ID = "qihoo360/fg-clip-large"
+MODEL_VERSION = "fgclip_v1"
 
-_MODEL_ID = "qihoo360/fg-clip-large"
-# Pinned to avoid pulling untrusted remote code from a moving HEAD.
-_MODEL_REVISION = "5a8f0f23b5a06dc92310e907599b2a0c2d58fe6f"
-_IMAGE_SIZE = 336
-_EMBEDDING_DIM = 768
-_MAX_TEXT_LENGTH = 77
+# Để None sẽ dùng revision hiện tại trên Hugging Face.
+# Khi production ổn định, nên thay bằng commit hash của fg-clip-large.
+MODEL_REVISION: Optional[str] = None
+
+IMAGE_SIZE = 336
+MAX_TEXT_LENGTH = 77
+WALK_SHORT_POS = True
 
 
 class FGClipEncoder:
-    """Encodes images and texts using FG-CLIP (qihoo360/fg-clip-large).
+    """Keeps FG-CLIP v1 model state loaded across requests."""
 
-    Owns model, tokenizer, image-processor, and device state across calls.
-    Output vectors are L2-normalized float32 with shape (n, 768).
-    """
+    provider = MODEL_PROVIDER
+    model_id = MODEL_ID
+    model_version = MODEL_VERSION
 
-    MODEL_ID = _MODEL_ID
-    EMBEDDING_DIM = _EMBEDDING_DIM
+    def __init__(
+        self,
+        device: Optional[str] = None,
+        revision: Optional[str] = MODEL_REVISION,
+    ) -> None:
+        self.device = torch.device(device or _default_device())
+        self.revision = revision
 
-    def __init__(self, device: str | None = None) -> None:
-        """Load model, tokenizer, and image processor onto *device*.
+        load_kwargs: dict[str, object] = {
+            "trust_remote_code": True,
+        }
 
-        Args:
-            device: ``"cuda"``, ``"mps"``, or ``"cpu"``. Auto-detected when None.
-        """
-        if device is None:
-            if torch.cuda.is_available():
-                device = "cuda"
-            elif torch.backends.mps.is_available():
-                device = "mps"
-            else:
-                device = "cpu"
+        if revision is not None:
+            load_kwargs["revision"] = revision
 
-        self.device = torch.device(device)
         self._model = AutoModelForCausalLM.from_pretrained(
-            _MODEL_ID, revision=_MODEL_REVISION, trust_remote_code=True
+            MODEL_ID,
+            **load_kwargs,
         ).to(self.device)
+
         self._model.eval()
+
+        tokenizer_kwargs: dict[str, object] = {}
+        processor_kwargs: dict[str, object] = {}
+
+        if revision is not None:
+            tokenizer_kwargs["revision"] = revision
+            processor_kwargs["revision"] = revision
+
         self._tokenizer = AutoTokenizer.from_pretrained(
-            _MODEL_ID, revision=_MODEL_REVISION
+            MODEL_ID,
+            **tokenizer_kwargs,
         )
+
         self._image_processor = AutoImageProcessor.from_pretrained(
-            _MODEL_ID, revision=_MODEL_REVISION
+            MODEL_ID,
+            **processor_kwargs,
         )
 
-    def encode_images(self, images: list[Image.Image]) -> np.ndarray:
-        """Encode PIL images to L2-normalized float32 embeddings.
+        self.embedding_dim = self._infer_embedding_dim()
 
-        Args:
-            images: List of PIL images; each resized to 336×336 before encoding.
+    def encode_texts(self, texts: Sequence[str]) -> np.ndarray:
+        """Encode text into normalized FG-CLIP embeddings."""
 
-        Returns:
-            ndarray of shape (n, 768), dtype float32, each row has L2 norm ≈ 1.
-        """
-        resized = [img.resize((_IMAGE_SIZE, _IMAGE_SIZE)) for img in images]
-        pixel_values = self._image_processor.preprocess(
-            resized, return_tensors="pt"
-        )["pixel_values"].to(self.device)
+        if not texts:
+            return np.empty((0, self.embedding_dim), dtype=np.float32)
 
-        with torch.no_grad():
-            features = self._model.get_image_features(pixel_values)
-            features = l2_normalize(features)
-
-        return features.cpu().float().numpy()
-
-    def encode_texts(
-        self, texts: list[str], *, walk_short_pos: bool = True
-    ) -> np.ndarray:
-        """Encode strings to L2-normalized float32 embeddings.
-
-        Args:
-            texts: List of strings; max 77 tokens per entry in short-caption mode.
-            walk_short_pos: FG-CLIP positional-walk flag; True for ≤77-token captions.
-
-        Returns:
-            ndarray of shape (n, 768), dtype float32, each row has L2 norm ≈ 1.
-        """
-        input_ids = torch.tensor(
-            self._tokenizer(
-                texts,
-                max_length=_MAX_TEXT_LENGTH,
-                padding="max_length",
-                truncation=True,
-            ).input_ids,
-            dtype=torch.long,
-            device=self.device,
+        encoded = self._tokenizer(
+            list(texts),
+            max_length=MAX_TEXT_LENGTH,
+            padding="max_length",
+            truncation=True,
+            return_tensors="pt",
         )
 
-        with torch.no_grad():
+        # FG-CLIP v1's custom implementation expects input_ids directly.
+        input_ids = encoded["input_ids"].to(self.device)
+
+        with torch.inference_mode():
             features = self._model.get_text_features(
-                input_ids, walk_short_pos=walk_short_pos
+                input_ids,
+                walk_short_pos=WALK_SHORT_POS,
             )
-            features = l2_normalize(features)
+            features = F.normalize(features.float(), p=2, dim=-1)
 
-        return features.cpu().float().numpy()
+        return features.cpu().numpy()
+
+    def encode_images(self, images: Sequence[Image.Image]) -> np.ndarray:
+        """Encode images into normalized FG-CLIP embeddings."""
+        print("run encode image", len(images))
+        if not images:
+            return np.empty((0, self.embedding_dim), dtype=np.float32)
+
+        prepared_images = [image.convert("RGB") for image in images]
+        processed = self._image_processor.preprocess(images=prepared_images, return_tensors="pt")
+
+        pixel_values = processed["pixel_values"].to(self.device)
+
+        with torch.inference_mode():
+            features = self._model.get_image_features(pixel_values)
+            features = F.normalize(features.float(), p=2, dim=-1)
+        print(features.shape)
+        return features.cpu().numpy()
+
+    def _infer_embedding_dim(self) -> int:
+        """Determine projected embedding dimension from model configuration."""
+
+        config = self._model.config
+
+        for attribute in (
+            "projection_dim",
+            "embed_dim",
+            "embedding_dim",
+        ):
+            value = getattr(config, attribute, None)
+            if isinstance(value, int) and value > 0:
+                return value
+
+        # Fallback đảm bảo lấy đúng kích thước từ chính checkpoint.
+        dummy_text = self._tokenizer(
+            [""],
+            max_length=MAX_TEXT_LENGTH,
+            padding="max_length",
+            truncation=True,
+            return_tensors="pt",
+        )["input_ids"].to(self.device)
+
+        with torch.inference_mode():
+            features = self._model.get_text_features(
+                dummy_text,
+                walk_short_pos=WALK_SHORT_POS,
+            )
+
+        return int(features.shape[-1])
+
+
+def _default_device() -> str:
+    if torch.cuda.is_available():
+        return "cuda"
+
+    if torch.backends.mps.is_available():
+        return "mps"
+
+    return "cpu"

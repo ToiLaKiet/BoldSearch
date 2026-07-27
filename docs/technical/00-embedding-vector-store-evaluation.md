@@ -29,7 +29,7 @@ a dedicated adapter, contract tests and a real-model smoke test.
 
 | Key | Status | Adapter | Dimension | Notes |
 | --- | --- | --- | --- | --- |
-| `fg_clip_large` | `FGClipEncoder` | 768 | Supported; currently loaded from a pinned Hugging Face revision. |
+| `fg_clip2_large` | `FGClipEncoder` | 1024 | Supported; currently loaded from a pinned `qihoo360/fg-clip2-large` Hugging Face revision. |
 | `beit3_base_itc` | `Beit3Encoder` | 768 | Supported; local DVC/R2 checkpoint checksum is required before artifact generation. |
 | `beit3_large_itc` | none yet | 1024 | Planned; requires a separate large-model adapter and verification. |
 
@@ -44,6 +44,10 @@ behavior is only `encode_images()` and `encode_texts()`, each returning
 L2-normalized `float32` vectors. The YAML loader uses Pydantic to validate the
 selected runtime inputs, then a small static bootstrap selects its known adapter;
 it does not dynamically import Python classes.
+
+FG-CLIP2 returns 1024-dimensional embeddings, so Milvus/Qdrant collections built
+with the earlier 768-dimensional FG-CLIP vectors must be regenerated before
+hybrid search can use this encoder.
 
 When DVC/R2 takes ownership of **all** model assets, FG-CLIP should follow the
 same local-asset rule: DVC pulls one immutable model directory, and

@@ -1,66 +1,112 @@
 """
-Pydantic schemas for the search module.
+Schemas for frame retrieval backed by Zilliz hybrid search.
 """
 
 from __future__ import annotations
 
-from typing import Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 from pydantic import BaseModel, Field
 
 
-# ── Request Schemas ──────────────────────────────────────────────────
-
-
-class SearchRequest(BaseModel):
-    """Body for POST /api/search/query"""
+class ObjectQuery(BaseModel):
+    """A free-form object query and expected quantity."""
 
     query: str = ""
-    task: str = Field(default="KIS", description="KIS or VKIS")
+    count: int = Field(default=1, ge=1)
+
+
+class FrameContext(BaseModel):
+    """A keyframe from the current UI result set used to scope staged search."""
+
+    path: str = ""
+    video_id: Optional[str] = None
+    frame_id: Optional[Union[str, int]] = None
+    shot_id: Optional[Union[str, int]] = None
+    score: Optional[float] = None
+
+
+class QueryRequest(BaseModel):
+    """Body for POST /api/search/query."""
+
+    query: str = ""
+    queries: List[str] = Field(default_factory=list)
+    task: str = "KIS"
     modalities: List[str] = Field(default_factory=list)
     objects: List[str] = Field(default_factory=list)
-    colors: List[str] = Field(default_factory=list)
-    temporal: str = ""
+    objectQueries: List[ObjectQuery] = Field(default_factory=list)
     minConfidence: float = Field(default=0, ge=0, le=1)
-    imageCue: Optional[Dict] = None
+    topK: Optional[int] = Field(default=None, ge=1)
+    frames_path: Optional[List[str]] = None
+    used_queries: List[str] = Field(default_factory=list)
+    frames_context: List[FrameContext] = Field(default_factory=list)
+
+
+class VisualQueryRequest(BaseModel):
+    """Body for POST /api/search/visual_query."""
+
+    task: str = "VKIS"
+    imageCue: Dict[str, Any] = Field(default_factory=dict)
+    imageEmbedding: Optional[List[float]] = None
+    minConfidence: float = Field(default=0, ge=0, le=1)
+    topK: Optional[int] = Field(default=None, ge=1)
 
 
 class SubmitRequest(BaseModel):
-    """Body for POST /api/search/submit"""
+    """Body for POST /api/search/submit."""
 
-    shotId: str
+    id: Optional[Union[str, int]] = None
+    frameId: Optional[Union[str, int]] = None
+    frame_id: Optional[Union[str, int]] = None
+    shotId: Optional[Union[str, int]] = None
+    shot_id: Optional[Union[str, int]] = None
+    videoId: Optional[str] = None
+    video_id: Optional[str] = None
     task: str = "KIS"
 
 
-# ── Response Schemas ─────────────────────────────────────────────────
+class SubmitResponse(BaseModel):
+    status: str
+    system: str
+    submission: Dict[str, Any]
+    message: Optional[str] = None
 
 
-class ShotBase(BaseModel):
-    """Core shot fields returned from the data store."""
-
-    id: str
-    videoId: str
-    shotId: str
-    title: str
-    description: str
-    thumbnail: str
-    videoUrl: str
-    start: str
-    end: str
-    duration: Union[int, float]
-    confidence: float
-    location: str
-    objects: List[str]
-    colors: List[str]
-    tags: List[str]
-    transcript: str
+class ObjectMatch(BaseModel):
+    query: str
+    requested: int
+    matched: int
 
 
-class ShotResult(ShotBase):
-    """A shot enriched with a relevance score and match reasons."""
-
-    score: float = 0.0
+class FrameResult(BaseModel):
+    id: Union[str, int]
+    frame_id: Optional[Union[str, int]] = None
+    shot_id: Optional[Union[str, int]] = None
+    video_id: Optional[str] = None
+    distance: Optional[float] = None
+    score: float
+    asr_text: str = ""
+    ocr_text: str = ""
+    transcript: str = ""
+    objects: List[str] = Field(default_factory=list)
+    objectMatches: List[ObjectMatch] = Field(default_factory=list)
+    objectMetadata: Dict[str, Any] = Field(default_factory=dict)
+    object_count_delta: Optional[float] = None
     reasons: List[str] = Field(default_factory=list)
+
+    # Compatibility fields for the current frontend.
+    videoId: str = ""
+    shotId: str = ""
+    title: str = ""
+    description: str = ""
+    thumbnail: str = ""
+    videoUrl: str = ""
+    start: str = ""
+    end: str = ""
+    duration: Union[int, float] = 0
+
+    embedding: Optional[List[float]] = None
+    raw: Dict[str, Any] = Field(default_factory=dict)
 
 
 class SearchResponse(BaseModel):
@@ -68,33 +114,7 @@ class SearchResponse(BaseModel):
     task: str
     query: str
     count: int
-    results: List[ShotResult]
-
-
-class ShotsResponse(BaseModel):
-    shots: List[ShotBase]
-
-
-class TaskInfo(BaseModel):
-    id: str
-    name: str
-    description: str
-    recommendedSignals: List[str]
-
-
-class TasksResponse(BaseModel):
-    system: str
-    tasks: List[TaskInfo]
-
-
-class SubmissionDetail(BaseModel):
-    shotId: str
-    videoId: str
-    timestamp: str
-
-
-class SubmitResponse(BaseModel):
-    status: str
-    system: str
-    submission: Optional[SubmissionDetail] = None
-    message: Optional[str] = None
+    cacheHitRatio: Optional[float] = None
+    cost: Optional[Union[int, float]] = None
+    topks: List[int] = Field(default_factory=list)
+    results: List[FrameResult]

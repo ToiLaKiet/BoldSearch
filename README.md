@@ -31,6 +31,11 @@ Verified on 2026-07-11:
 
 ## Quickstart
 
+Đặt folder keyframes vào app/frontend/public
+Đặt file Frames.csv vào app/frontend/public
+Đặt file detections.csv vào app/backend
+Chỉnh sửa các API, settings Milvus trong file .env backend
+
 Backend:
 
 ```bash

@@ -4,24 +4,45 @@ BoldSearcher — FastAPI entry point.
 
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app_config import app_config
+from connections import close_connections, init_milvus
+from encoders.loader import load_fg_clip_encoder
+from search.object_index import load_object_index
 
-# ── Module routers ───────────────────────────────────────────────────
 from search.router import router as search_router
-from ocr.router import router as ocr_router
-from asr.router import router as asr_router
-from object_detection.router import router as object_detection_router
-from embedding.router import router as embedding_router
 
 
 # ── App factory ──────────────────────────────────────────────────────
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    print(f"Starting {app_config.SYSTEM_NAME}...")
+    app.state.object_index = load_object_index(app_config)
+    print(f"Loaded object index with {len(app.state.object_index)} entries.")
+    app.state.milvus_client = init_milvus(app_config)
+    print(f"Connected to Milvus at {app_config.ZILLIZ_URI}.")
+    app.state.embedding_encoder = (
+        load_fg_clip_encoder(app_config.FG_CLIP_DEVICE or None, app_config.HF_TOKEN)
+        if app_config.LOAD_FG_CLIP_ON_STARTUP
+        else None
+    )
+    try:
+        yield
+    finally:
+        close_connections()
+
+
 app = FastAPI(
     title=app_config.SYSTEM_NAME,
-    description="Interactive video shot retrieval system for AI Challenge.",
-    version="0.2.0",
+    description="Frame retrieval API backed by Zilliz hybrid search and CSV object metadata.",
+    version="0.3.0",
+    lifespan=lifespan,
 )
 
 # ── CORS ─────────────────────────────────────────────────────
@@ -34,15 +55,8 @@ app.add_middleware(
 )
 
 # ── Register routers ─────────────────────────────────────────
-# Each router already defines its own sub-prefix (e.g. /search, /ocr).
-# We mount them all under /api so the full paths become:
-#   /api/search/query, /api/ocr/extract, /api/asr/transcribe, etc.
 
 app.include_router(search_router, prefix=app_config.API_PREFIX)
-app.include_router(ocr_router, prefix=app_config.API_PREFIX)
-app.include_router(asr_router, prefix=app_config.API_PREFIX)
-app.include_router(object_detection_router, prefix=app_config.API_PREFIX)
-app.include_router(embedding_router, prefix=app_config.API_PREFIX)
 
 # ── Global health endpoint ───────────────────────────────────
 
