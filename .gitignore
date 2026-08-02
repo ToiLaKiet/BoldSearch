@@ -45,8 +45,7 @@ zilliz-cloud-AIC2026-username-password.txt
 *.db
 models/
 artifacts/
-data/raw/
-data/processed/
+data/
 benchmark-reports/
 vector-db-data/
 
