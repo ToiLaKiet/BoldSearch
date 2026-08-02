@@ -1,0 +1,46 @@
+flowchart LR
+    subgraph INPUT["1. Input contract"]
+        REQ["POST /api/asr/transcribe<br/><br/>video_id: string<br/>language?: string = vi<br/>keyframes?: KeyframeRecord[]"]
+        KF["KeyframeRecord<br/><br/>video_id: string<br/>frame_id: string<br/>timestamp_ms: integer >= 0<br/>img_path: non-empty string"]
+        REQ --> KF
+    end
+
+    subgraph PIPE["2. Current ASR pipeline"]
+        VALIDATE["Validate request<br/>extra fields forbidden<br/>only language = vi"]
+        MEDIA["Media resolver<br/>resolve(video_id)"]
+        AUDIO["Normalize audio<br/>FFmpeg → PCM mono 16 kHz WAV"]
+        MODEL["ChunkFormer<br/>transcribe(audio, video_id)"]
+        JOIN["Attach text to keyframes<br/>start ≤ timestamp_ms / 1000 < end"]
+        VALIDATE --> MEDIA --> AUDIO --> MODEL --> JOIN
+    end
+
+    subgraph OUTPUT["3. Output contract"]
+        OK["200 AsrResponse<br/><br/>video_id<br/>language<br/>full_transcript<br/>segments[]<br/>keyframes[] + text?"]
+        SEG["segments[]<br/>video_id · start/end in seconds<br/>text · confidence?"]
+        OUT_KF["keyframes[]<br/>video_id · frame_id<br/>timestamp_ms · img_path<br/>text?"]
+        OK --> SEG
+        OK --> OUT_KF
+    end
+
+    REQ --> VALIDATE
+    JOIN --> OK
+
+    ERR["Error responses<br/><br/>422 validation · language · audio · keyframe<br/>404 MEDIA_NOT_FOUND<br/>502 ASR_RESULT_INVALID<br/>503 resolver · inference"]
+    GAP["Current runtime gap<br/>main.app does not inject<br/>asr_media_resolver<br/>→ request via main.app returns 503"]
+    DRIFT["Contract drift in docs<br/>docs use timestamp in seconds<br/>current field is timestamp_ms<br/>keyframe.video_id is required"]
+
+    VALIDATE -.-> ERR
+    MEDIA -.-> GAP
+    REQ -.-> DRIFT
+
+    classDef contract fill:#f8f4ec,stroke:#c9b79c,color:#2b2b2b
+    classDef process fill:#eaf2ff,stroke:#6c8ebf,color:#1f2937
+    classDef result fill:#e8f5e9,stroke:#82b366,color:#1f2937
+    classDef error fill:#fff0f0,stroke:#b85450,color:#5b1a1a
+    classDef note fill:#fff8dd,stroke:#d6b656,color:#5b4a00
+
+    class REQ,KF contract
+    class VALIDATE,MEDIA,AUDIO,MODEL,JOIN process
+    class OK,SEG,OUT_KF result
+    class ERR error
+    class GAP,DRIFT note
