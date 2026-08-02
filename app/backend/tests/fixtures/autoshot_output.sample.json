@@ -1,0 +1,23 @@
+{
+  "video_id": "L21_V91",
+  "keyframes": [
+    {
+      "video_id": "L21_V91",
+      "frame_id": "001",
+      "timestamp_ms": 1000,
+      "img_path": "tests/fixtures/autoshot/L21_V91/001.png"
+    },
+    {
+      "video_id": "L21_V91",
+      "frame_id": "002",
+      "timestamp_ms": 3000,
+      "img_path": "tests/fixtures/autoshot/L21_V91/002.png"
+    },
+    {
+      "video_id": "L21_V91",
+      "frame_id": "003",
+      "timestamp_ms": 5000,
+      "img_path": "tests/fixtures/autoshot/L21_V91/003.png"
+    }
+  ]
+}

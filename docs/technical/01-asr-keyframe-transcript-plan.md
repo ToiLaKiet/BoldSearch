@@ -28,8 +28,8 @@ nhất.
 
 ## 3. Data contract
 
-Tất cả `start`, `end` và `timestamp` là số giây tính từ đầu media, dùng cùng
-time base.
+Tất cả `start` và `end` là số giây; `timestamp_ms` là số millisecond tính từ
+đầu media, dùng cùng time base.
 
 ### 3.1. ASR segment
 
@@ -52,15 +52,14 @@ giá trị trả về là `null`.
 
 ```json
 {
-  "video_id": "L21_V91",
   "frame_id": "002",
-  "timestamp": 83.0,
+  "timestamp_ms": 83000,
   "img_path": "L21_V91/002.png"
 }
 ```
 
-`video_id`, `frame_id`, `timestamp` và `img_path` là các field bắt buộc. Metadata
-khác từ AutoShot vẫn được giữ nguyên.
+`frame_id`, `timestamp_ms` và `img_path` là các field bắt buộc. `video_id` nằm ở
+cấp video trong request AutoShot và được endpoint điền vào từng keyframe output.
 
 ### 3.3. Keyframe output
 
@@ -70,7 +69,7 @@ Mỗi keyframe chỉ có một `text`, không chứa `list[text]`:
 {
   "video_id": "L21_V91",
   "frame_id": "002",
-  "timestamp": 83.0,
+  "timestamp_ms": 83000,
   "img_path": "L21_V91/002.png",
   "text": "Tụi t là BoldWarriors"
 }
@@ -96,15 +95,13 @@ Request:
   "language": "vi",
   "keyframes": [
     {
-      "video_id": "L21_V91",
       "frame_id": "001",
-      "timestamp": 60.0,
+      "timestamp_ms": 60000,
       "img_path": "L21_V91/001.png"
     },
     {
-      "video_id": "L21_V91",
       "frame_id": "002",
-      "timestamp": 83.0,
+      "timestamp_ms": 83000,
       "img_path": "L21_V91/002.png"
     }
   ]
@@ -130,14 +127,14 @@ Response `200`:
     {
       "video_id": "L21_V91",
       "frame_id": "001",
-      "timestamp": 60.0,
+      "timestamp_ms": 60000,
       "img_path": "L21_V91/001.png",
       "text": "Tụi t là BoldWarriors"
     },
     {
       "video_id": "L21_V91",
       "frame_id": "002",
-      "timestamp": 83.0,
+      "timestamp_ms": 83000,
       "img_path": "L21_V91/002.png",
       "text": "Tụi t là BoldWarriors"
     }
@@ -150,22 +147,22 @@ Response `200`:
 
 ## 5. Quy tắc mapping
 
-Keyframe có timestamp `t` thuộc segment khi:
+Keyframe có `timestamp_ms` thuộc segment khi:
 
 ```text
-segment.start <= t < segment.end
+segment.start * 1000 <= timestamp_ms < segment.end * 1000
 ```
 
 Đây là khoảng nửa mở `[start, end)`:
 
-- `t == start`: thuộc segment.
-- `t == end`: không thuộc segment đó.
+- `timestamp_ms == start * 1000`: thuộc segment.
+- `timestamp_ms == end * 1000`: không thuộc segment đó.
 - Không có segment phù hợp: `text = null`.
 - Segment overlap: chọn segment đầu tiên sau khi sort theo `(start, end)`.
-- Không join chéo `video_id`.
+- Segment phải cùng `video_id` với video ở cấp request.
 - Thứ tự keyframe output giống request.
 
-Ví dụ: `83.0 ∈ [60.0, 103.0)`, nên frame `002` nhận text của segment đó.
+Ví dụ: `83000 ∈ [60000, 103000)`, nên frame `002` nhận text của segment đó.
 
 ## 6. Module và trách nhiệm
 
@@ -196,7 +193,7 @@ normalization → ASR → keyframe mapping.
 | ffmpeg lỗi, timeout hoặc không có trên PATH | 422 | `AUDIO_NORMALIZATION_FAILED` |
 | Output ChunkFormer sai format | 502 | `ASR_RESULT_INVALID` |
 | Model load/decode lỗi | 503 | `ASR_INFERENCE_FAILED` |
-| Keyframe sai video, timestamp hoặc trùng `frame_id` | 422 | `KEYFRAME_SCHEMA_INVALID` |
+| Keyframe có timestamp sai hoặc trùng `frame_id` | 422 | `KEYFRAME_SCHEMA_INVALID` |
 
 FastAPI/Pydantic trả lỗi validation `422` chuẩn cho request không đúng kiểu dữ
 liệu trước khi vào router.
@@ -205,23 +202,24 @@ liệu trước khi vào router.
 
 - **FR-ASR-01:** Chạy model một lần cho mỗi request/video.
 - **FR-ASR-02:** Trả segment có `video_id`, `start`, `end`, `text`.
-- **FR-ASR-03:** Nhận keyframe có `video_id`, `frame_id`, `timestamp`, `img_path`.
+- **FR-ASR-03:** Nhận AutoShot JSON có `video_id` cấp trên; mỗi keyframe có
+  `frame_id`, `timestamp`, `img_path`.
 - **FR-ASR-04:** Gắn đúng một `text | null` vào mỗi keyframe bằng `[start, end)`.
-- **FR-ASR-05:** Giữ thứ tự và metadata ngoài các field bắt buộc.
+- **FR-ASR-05:** Giữ thứ tự keyframe và thêm `video_id`, `text` vào output.
 - **FR-ASR-06:** Dọn temporary WAV sau cả success lẫn failure.
 
 - **BR-ASR-01:** Chỉ hỗ trợ `language = "vi"` trong MVP.
 - **BR-ASR-02:** Media chỉ được tham chiếu bằng `video_id`; field ngoài schema
   bị reject.
-- **BR-ASR-03:** Segment và keyframe phải cùng `video_id`.
+- **BR-ASR-03:** Segment phải cùng `video_id` với request.
 - **BR-ASR-04:** Frame không có lời nói nhận `text: null`; không dùng fallback.
 
-- **AC-ASR-01:** Frame tại `83` nhận text của segment `[60, 103)`.
-- **AC-ASR-02:** Frame tại `103` không nhận text của segment `[60, 103)`.
+- **AC-ASR-01:** Frame tại `83000` nhận text của segment `[60, 103)`.
+- **AC-ASR-02:** Frame tại `103000` không nhận text của segment `[60, 103)`.
 - **AC-ASR-03:** Hai frame trong cùng segment có thể nhận cùng text.
 - **AC-ASR-04:** Frame ngoài tất cả segment có `text: null`.
-- **AC-ASR-05:** Cross-video, timestamp âm/không hữu hạn và duplicate frame bị
-  reject.
+- **AC-ASR-05:** Segment cross-video, timestamp âm/không hữu hạn và duplicate
+  frame bị reject.
 - **AC-ASR-06:** Response không có `unmatched_count`.
 - **AC-ASR-07:** Audio tiếng Việt thật qua HTTP trả `200`, segment có text và
   keyframe mapping đúng khoảng thời gian.

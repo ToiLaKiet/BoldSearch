@@ -4,6 +4,7 @@ Tests for asr/router.py — DI and HTTP contract.
 
 from __future__ import annotations
 
+import json
 import subprocess
 from pathlib import Path
 
@@ -90,11 +91,28 @@ class TestTranscribeEndpoint:
         assert set(keyframe_schema["properties"]) == {
             "video_id",
             "frame_id",
-            "timestamp",
+            "timestamp_ms",
             "img_path",
             "text",
         }
         assert "img_path" in keyframe_schema["required"]
+
+    def test_request_keyframe_schema_matches_autoshot_output(self):
+        request_schema = AsrRequest.model_json_schema()
+        keyframe_schema = request_schema["$defs"]["KeyframeRecord"]
+
+        assert set(keyframe_schema["properties"]) == {
+            "video_id",
+            "frame_id",
+            "timestamp_ms",
+            "img_path",
+        }
+        assert set(keyframe_schema["required"]) == {
+            "video_id",
+            "frame_id",
+            "timestamp_ms",
+            "img_path",
+        }
 
     def test_transcribe_with_video_id_resolver(self, app_with_transcriber):
         app_with_transcriber.state.asr_transcriber = _FakeTranscriber(
@@ -109,24 +127,13 @@ class TestTranscribeEndpoint:
             )
         )
         client = TestClient(app_with_transcriber)
-        response = client.post("/api/asr/transcribe", json={
-            "video_id": "v1",
-            "language": "vi",
-            "keyframes": [
-                {
-                    "video_id": "v1",
-                    "frame_id": "001",
-                    "timestamp": 1.0,
-                    "img_path": "v1/001.png",
-                },
-                {
-                    "video_id": "v1",
-                    "frame_id": "002",
-                    "timestamp": 3.0,
-                    "img_path": "v1/002.png",
-                },
-            ],
-        })
+        fixture_path = Path(__file__).parent / "fixtures" / "autoshot_output.sample.json"
+        payload = json.loads(fixture_path.read_text())
+        for keyframe in payload["keyframes"]:
+            assert (Path(__file__).parents[1] / keyframe["img_path"]).is_file()
+        payload["video_id"] = "v1"
+        payload["keyframes"] = payload["keyframes"][:2]
+        response = client.post("/api/asr/transcribe", json=payload)
         assert response.status_code == 200
         data = response.json()
         assert data["language"] == "vi"
@@ -142,17 +149,17 @@ class TestTranscribeEndpoint:
         ]
         assert data["keyframes"] == [
             {
-                "video_id": "v1",
-                "frame_id": "001",
-                "timestamp": 1.0,
-                "img_path": "v1/001.png",
+                    "video_id": "v1",
+                    "frame_id": "001",
+                    "timestamp_ms": 1000,
+                    "img_path": "tests/fixtures/autoshot/L21_V91/001.png",
                 "text": "xin chào",
             },
             {
-                "video_id": "v1",
-                "frame_id": "002",
-                "timestamp": 3.0,
-                "img_path": "v1/002.png",
+                    "video_id": "v1",
+                    "frame_id": "002",
+                    "timestamp_ms": 3000,
+                    "img_path": "tests/fixtures/autoshot/L21_V91/002.png",
                 "text": None,
             },
         ]
@@ -164,7 +171,7 @@ class TestTranscribeEndpoint:
             json={
                 "video_id": "v1",
                 "keyframes": [
-                    {"video_id": "v1", "frame_id": "001", "timestamp": 1.0}
+                    {"video_id": "v1", "frame_id": "001", "timestamp_ms": 1000}
                 ],
             },
         )

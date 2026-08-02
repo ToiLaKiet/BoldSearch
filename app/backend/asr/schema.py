@@ -46,22 +46,22 @@ class TranscriptResult(BaseModel):
 class KeyframeRecord(BaseModel):
     """A keyframe awaiting ASR text."""
 
-    model_config = ConfigDict(frozen=True, extra="allow")
+    model_config = ConfigDict(frozen=True, extra="forbid")
 
     video_id: str
     frame_id: str
-    timestamp: float = Field(description="Time from the start of the video, in seconds.")
+    timestamp_ms: int = Field(description="Time from the start of the video, in milliseconds.")
     img_path: str = Field(min_length=1, description="Path to the extracted keyframe image.")
 
 
 class KeyframeWithText(BaseModel):
     """A keyframe and the text of its containing ASR segment."""
 
-    model_config = ConfigDict(frozen=True, extra="allow")
+    model_config = ConfigDict(frozen=True, extra="forbid")
 
     video_id: str
     frame_id: str
-    timestamp: float = Field(description="Time from the start of the video, in seconds.")
+    timestamp_ms: int = Field(description="Time from the start of the video, in milliseconds.")
     img_path: str = Field(min_length=1, description="Path to the extracted keyframe image.")
     text: str | None = None
 

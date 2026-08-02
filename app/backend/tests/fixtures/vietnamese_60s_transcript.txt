@@ -1,0 +1,7 @@
+Xin chào các bạn. Đây là đoạn video tiếng Việt dùng để kiểm tra hệ thống nhận dạng giọng nói tự động. Hôm nay chúng ta sẽ thử chạy toàn bộ quy trình từ video, tách âm thanh, nhận dạng từng đoạn lời nói, rồi gắn nội dung vào các khung hình theo mốc thời gian.
+
+Trong phần đầu, hệ thống cần nghe rõ câu nói và xác định thời điểm bắt đầu cũng như thời điểm kết thúc. Mỗi đoạn kết quả phải có mã video, thời gian bắt đầu, thời gian kết thúc và nội dung văn bản. Nếu một khung hình xuất hiện trong khoảng thời gian của đoạn nói, khung hình đó sẽ nhận nội dung tương ứng.
+
+Trong phần tiếp theo, chúng ta tạo một vài khoảng nghỉ tự nhiên giữa các câu. Những khoảng nghỉ này giúp kiểm tra xem mô hình có chia kết quả thành nhiều đoạn hợp lý hay không. Một khung hình nằm ngoài tất cả các đoạn có tiếng nói sẽ nhận giá trị văn bản rỗng. Nhiều khung hình nằm trong cùng một đoạn có thể nhận cùng một nội dung.
+
+Cuối cùng, chúng ta kiểm tra đường dẫn ảnh của từng khung hình. Đường dẫn ảnh phải được giữ nguyên từ dữ liệu đầu vào đến dữ liệu đầu ra. Video thử nghiệm này dài đúng một phút và chỉ phục vụ việc kiểm tra kỹ thuật. Cảm ơn các bạn đã lắng nghe. Bây giờ quá trình thử nghiệm có thể bắt đầu.
