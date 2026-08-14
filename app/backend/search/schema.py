@@ -53,7 +53,7 @@ class VisualQueryRequest(BaseModel):
 
 
 class SubmitRequest(BaseModel):
-    """Body for POST /api/search/submit."""
+    """Body for POST /api/search/submit/kis — Known Item Search."""
 
     id: Optional[Union[str, int]] = None
     frameId: Optional[Union[str, int]] = None
@@ -65,7 +65,38 @@ class SubmitRequest(BaseModel):
     task: str = "KIS"
 
 
+class VQASubmitRequest(BaseModel):
+    """Body for POST /api/search/submit/vqa — Visual Question Answering."""
+
+    video_id: str
+    frame_id: Union[str, int]
+    answer: str
+    task: str = "VQA"
+
+
+class TrakeSubmitRequest(BaseModel):
+    """Body for POST /api/search/submit/trake — Temporal Retrieval and Key-event."""
+
+    video_id: str
+    frame_ids: List[Union[str, int]]
+    task: str = "TRAKE"
+
+
 class SubmitResponse(BaseModel):
+    status: str
+    system: str
+    submission: Dict[str, Any]
+    message: Optional[str] = None
+
+
+class VQASubmitResponse(BaseModel):
+    status: str
+    system: str
+    submission: Dict[str, Any]
+    message: Optional[str] = None
+
+
+class TrakeSubmitResponse(BaseModel):
     status: str
     system: str
     submission: Dict[str, Any]

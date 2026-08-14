@@ -57,8 +57,41 @@ async def visual_query(body: schema.VisualQueryRequest, request: Request):
 
 @router.post("/submit", response_model=schema.SubmitResponse)
 async def submit(body: schema.SubmitRequest):
-    """Submit one retrieved frame as the selected answer."""
+    """Submit one retrieved frame as the selected answer (KIS — backward compat)."""
     try:
         return service.submit_frame(body, app_config)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.post("/submit/kis", response_model=schema.SubmitResponse)
+async def submit_kis(body: schema.SubmitRequest):
+    """KIS: submit a single frame as the known-item answer.
+    Body: { video_id, frame_id }
+    """
+    try:
+        return service.submit_frame(body, app_config)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.post("/submit/vqa", response_model=schema.VQASubmitResponse)
+async def submit_vqa(body: schema.VQASubmitRequest):
+    """VQA: submit a frame + free-text answer.
+    Body: { video_id, frame_id, answer }
+    """
+    try:
+        return service.submit_vqa(body, app_config)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.post("/submit/trake", response_model=schema.TrakeSubmitResponse)
+async def submit_trake(body: schema.TrakeSubmitRequest):
+    """TRAKE: submit multiple frame_ids for temporal retrieval.
+    Body: { video_id, frame_ids: [frame_id1, ..., frame_idN] }
+    """
+    try:
+        return service.submit_trake(body, app_config)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc

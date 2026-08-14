@@ -270,6 +270,51 @@ def submit_frame(
     )
 
 
+def submit_vqa(
+    body: schema.VQASubmitRequest,
+    config: AppConfig,
+) -> schema.VQASubmitResponse:
+    """Submit a VQA answer: video_id + frame_id + free-text answer."""
+    if not body.video_id:
+        raise ValueError("submit_vqa requires video_id")
+    if body.frame_id is None or body.frame_id == "":
+        raise ValueError("submit_vqa requires frame_id")
+    if not body.answer and body.answer != "0":
+        raise ValueError("submit_vqa requires a non-empty answer")
+
+    return schema.VQASubmitResponse(
+        status="accepted",
+        system=config.SYSTEM_NAME,
+        submission={
+            "video_id": body.video_id,
+            "frame_id": body.frame_id,
+            "answer": body.answer,
+            "task": "VQA",
+        },
+    )
+
+
+def submit_trake(
+    body: schema.TrakeSubmitRequest,
+    config: AppConfig,
+) -> schema.TrakeSubmitResponse:
+    """Submit a TRAKE answer: video_id + list of frame_ids."""
+    if not body.video_id:
+        raise ValueError("submit_trake requires video_id")
+    if not body.frame_ids:
+        raise ValueError("submit_trake requires at least one frame_id")
+
+    return schema.TrakeSubmitResponse(
+        status="accepted",
+        system=config.SYSTEM_NAME,
+        submission={
+            "video_id": body.video_id,
+            "frame_ids": list(body.frame_ids),
+            "task": "TRAKE",
+        },
+    )
+
+
 def _hybrid_search(
     config: AppConfig,
     client: Any,

@@ -988,6 +988,9 @@ input[type="file"]::file-selector-button:hover {
   text-align: left;
   transition: all var(--duration) var(--ease);
   position: relative;
+  cursor: pointer;
+  outline: none;
+  overflow: hidden;
 }
 
 .shot-card:hover {
@@ -1000,6 +1003,12 @@ input[type="file"]::file-selector-button:hover {
   border-color: var(--accent);
   box-shadow: 0 0 0 1px var(--accent),
               0 8px 32px rgba(16, 163, 127, 0.15);
+}
+
+.shot-card:focus-visible {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-subtle),
+              0 0 0 1px var(--accent);
 }
 
 .shot-card img {
@@ -1049,6 +1058,8 @@ input[type="file"]::file-selector-button:hover {
   cursor: pointer;
   transition: background 150ms var(--ease), transform 100ms var(--ease);
   box-shadow: 0 2px 8px rgba(16, 163, 127, 0.25);
+  position: relative;
+  z-index: 3;
 }
 
 .card-submit-btn:hover:not(:disabled) {
@@ -1908,4 +1919,433 @@ input[type="file"]::file-selector-button:hover {
   text-align: center;
   font-size: 0.82rem;
   color: var(--text-tertiary);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Task Mode Selector (Topbar)
+   ═══════════════════════════════════════════════════════════════════ */
+
+.task-mode-selector {
+  display: flex;
+  align-items: center;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-full);
+  padding: 3px;
+  gap: 2px;
+}
+
+.task-mode-btn {
+  padding: 5px 14px;
+  border-radius: var(--radius-full);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: all var(--duration) var(--ease);
+  white-space: nowrap;
+}
+
+.task-mode-btn:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
+.task-mode-btn.active {
+  background: var(--accent);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(16, 163, 127, 0.35);
+}
+
+/* Mode-specific accent colors for active state */
+.task-mode-btn.active[title*="VQA"] {
+  background: #7c3aed;
+  box-shadow: 0 2px 8px rgba(124, 58, 237, 0.35);
+}
+
+.task-mode-btn.active[title*="TRAKE"] {
+  background: #d97706;
+  box-shadow: 0 2px 8px rgba(217, 119, 6, 0.35);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   VQA Answer Field (Card + Slideshow)
+   ═══════════════════════════════════════════════════════════════════ */
+
+.vqa-answer-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  margin-top: 4px;
+}
+
+.vqa-input {
+  width: 100%;
+  padding: 6px 10px;
+  background: var(--bg-root);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 0.8rem;
+  font-family: inherit;
+  transition: border-color var(--duration) var(--ease),
+              box-shadow var(--duration) var(--ease);
+}
+
+.vqa-input:focus {
+  outline: none;
+  border-color: #7c3aed;
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.15);
+}
+
+.vqa-input::placeholder {
+  color: var(--text-tertiary);
+}
+
+.vqa-submit-btn {
+  background: #7c3aed !important;
+  border-color: #7c3aed !important;
+}
+
+.vqa-submit-btn:hover:not(:disabled) {
+  background: #6d28d9 !important;
+}
+
+.vqa-submit-btn.ok {
+  background: var(--success) !important;
+}
+
+.vqa-submit-btn.err {
+  background: var(--error) !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   TRAKE — Card selection indicator
+   ═══════════════════════════════════════════════════════════════════ */
+
+.trake-check {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 4;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--bg-elevated);
+  border: 2px solid var(--border-strong);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  transition: all var(--duration) var(--ease);
+  user-select: none;
+}
+
+.trake-check:hover {
+  background: rgba(217, 119, 6, 0.2);
+  border-color: #d97706;
+  color: #d97706;
+}
+
+.trake-check.checked {
+  background: #d97706;
+  border-color: #d97706;
+  color: #fff;
+  box-shadow: 0 0 0 3px rgba(217, 119, 6, 0.25);
+}
+
+/* Card highlighted when trake-selected */
+.shot-card.trake-selected {
+  outline: 2px solid #d97706;
+  outline-offset: 2px;
+  background: rgba(217, 119, 6, 0.06);
+}
+
+.trake-toggle-btn {
+  background: var(--bg-elevated) !important;
+  border: 1px solid var(--border-strong) !important;
+  color: var(--text-secondary) !important;
+  font-size: 0.73rem !important;
+  padding: 4px 10px !important;
+  transition: all var(--duration) var(--ease) !important;
+}
+
+.trake-toggle-btn:hover {
+  border-color: #d97706 !important;
+  color: #d97706 !important;
+  background: rgba(217, 119, 6, 0.1) !important;
+}
+
+.trake-toggle-btn.ok {
+  background: #d97706 !important;
+  border-color: #d97706 !important;
+  color: #fff !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   TRAKE Panel (Detail Panel)
+   ═══════════════════════════════════════════════════════════════════ */
+
+.trake-panel {
+  margin-top: 16px;
+  background: var(--bg-elevated);
+  border: 1px solid rgba(217, 119, 6, 0.25);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.trake-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: rgba(217, 119, 6, 0.08);
+  border-bottom: 1px solid rgba(217, 119, 6, 0.15);
+}
+
+.trake-panel-title {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #d97706;
+  letter-spacing: 0.03em;
+}
+
+.trake-panel-count {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  background: var(--bg-elevated);
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border-default);
+}
+
+.trake-panel-empty {
+  padding: 14px;
+  font-size: 0.78rem;
+  color: var(--text-tertiary);
+  text-align: center;
+  line-height: 1.5;
+}
+
+.trake-frame-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 12px 14px;
+  max-height: 160px;
+  overflow-y: auto;
+}
+
+.trake-frame-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px 4px 10px;
+  background: var(--bg-hover);
+  border: 1px solid rgba(217, 119, 6, 0.3);
+  border-radius: var(--radius-full);
+  font-size: 0.75rem;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.trake-chip-remove {
+  background: none;
+  border: none;
+  color: var(--text-tertiary);
+  font-size: 0.7rem;
+  padding: 0 2px;
+  cursor: pointer;
+  line-height: 1;
+  transition: color var(--duration) var(--ease);
+}
+
+.trake-chip-remove:hover {
+  color: var(--error);
+}
+
+.trake-panel-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.trake-clear-btn {
+  font-size: 0.78rem !important;
+  padding: 6px 12px !important;
+}
+
+.trake-submit-all-btn {
+  background: #d97706 !important;
+  border-color: #d97706 !important;
+  font-size: 0.82rem !important;
+  padding: 7px 16px !important;
+  box-shadow: 0 2px 8px rgba(217, 119, 6, 0.3) !important;
+  transition: all var(--duration) var(--ease) !important;
+}
+
+.trake-submit-all-btn:hover:not(:disabled) {
+  background: #b45309 !important;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(217, 119, 6, 0.4) !important;
+}
+
+.trake-submit-all-btn:disabled {
+  opacity: 0.4 !important;
+  cursor: not-allowed !important;
+  transform: none !important;
+}
+
+.trake-submit-all-btn.ok {
+  background: var(--success) !important;
+  box-shadow: 0 2px 8px rgba(16, 163, 127, 0.3) !important;
+}
+
+.trake-submit-all-btn.err {
+  background: var(--error) !important;
+  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3) !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Slideshow — Mode-aware additions
+   ═══════════════════════════════════════════════════════════════════ */
+
+.ss-mode-badge {
+  padding: 2px 9px;
+  border-radius: var(--radius-full);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.ss-mode-kis {
+  background: var(--accent-subtle);
+  color: var(--accent-text);
+  border: 1px solid rgba(16, 163, 127, 0.2);
+}
+
+.ss-mode-vqa {
+  background: rgba(124, 58, 237, 0.12);
+  color: #a78bfa;
+  border: 1px solid rgba(124, 58, 237, 0.2);
+}
+
+.ss-mode-trake {
+  background: rgba(217, 119, 6, 0.12);
+  color: #fbbf24;
+  border: 1px solid rgba(217, 119, 6, 0.2);
+}
+
+/* VQA area in slideshow */
+.ss-vqa-area {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.ss-vqa-row {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.ss-vqa-input {
+  flex: 1;
+  font-size: 0.85rem !important;
+  padding: 8px 12px !important;
+}
+
+/* TRAKE hint in slideshow */
+.ss-trake-hint {
+  padding: 10px 14px;
+  background: rgba(217, 119, 6, 0.08);
+  border: 1px solid rgba(217, 119, 6, 0.2);
+  border-radius: var(--radius-sm);
+  font-size: 0.78rem;
+  color: #fbbf24;
+  line-height: 1.5;
+}
+
+.ss-trake-hint strong {
+  color: #d97706;
+}
+
+/* Ensure TRAKE check positioning works */
+.shot-card {
+  position: relative;
+}
+
+/* ── TRAKE overlay button on slideshow main image ── */
+.ss-main-img {
+  position: relative;
+}
+
+.ss-trake-overlay-btn {
+  position: absolute;
+  bottom: 36px;
+  right: 8px;
+  z-index: 5;
+  padding: 5px 12px;
+  border-radius: var(--radius-full);
+  font-size: 0.75rem;
+  font-weight: 700;
+  background: rgba(15, 15, 15, 0.75);
+  border: 1.5px solid rgba(217, 119, 6, 0.6);
+  color: #fbbf24;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+  transition: all var(--duration) var(--ease);
+  white-space: nowrap;
+}
+
+.ss-trake-overlay-btn:hover {
+  background: rgba(217, 119, 6, 0.25);
+  border-color: #d97706;
+  color: #fff;
+}
+
+.ss-trake-overlay-btn.checked {
+  background: #d97706;
+  border-color: #d97706;
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(217, 119, 6, 0.4);
+}
+
+/* ── TRAKE indicator on strip thumb ── */
+.strip-thumb.trake-checked {
+  outline: 2px solid #d97706;
+  outline-offset: 1px;
+}
+
+.strip-thumb {
+  position: relative;
+}
+
+.strip-trake-dot {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #d97706;
+  color: #fff;
+  font-size: 0.6rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
 }

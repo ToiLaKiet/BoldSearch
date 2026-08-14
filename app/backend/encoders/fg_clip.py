@@ -35,12 +35,23 @@
 #         self._tokenizer = AutoTokenizer.from_pretrained(
 #             MODEL_ID,
 #             revision=MODEL_REVISION,
+#             trust_remote_code=True
 #         )
 #         self._image_processor = AutoImageProcessor.from_pretrained(
 #             MODEL_ID,
 #             revision=MODEL_REVISION,
+#             trust_remote_code=True
 #         )
-
+#         # Suy ra embedding dim động bằng 1 forward pass giả (an toàn cho mọi variant base/large/so400m/huge)
+#         self.embedding_dim = self._infer_embedding_dim()
+#         print(f"Model loaded. embedding_dim = {self.embedding_dim}")
+        
+#     def _infer_embedding_dim(self) -> int:
+#         dummy = Image.new("RGB", (224, 224), color=(128, 128, 128))
+#         with torch.no_grad():
+#             feats = self.encode_images([dummy])
+#         return int(feats.shape[-1])
+    
 #     def encode_texts(self, texts: list[str]) -> np.ndarray:
 #         text_input = self._tokenizer(
 #             texts,
