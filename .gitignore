@@ -2,6 +2,7 @@ paper
 *.pdf
 *.pickle
 *.pth
+*.png
 zilliz-cloud-AIC2026-username-password.txt
 
 # Local OS/editor noise
