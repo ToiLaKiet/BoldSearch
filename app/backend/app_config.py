@@ -21,14 +21,14 @@ class AppConfig(BaseSettings):
     # ── Zilliz / Milvus ──────────────────────────────────────────
     ZILLIZ_URI: str = "https://in03-a9de8a8c8070a7b.serverless.aws-eu-central-1.cloud.zilliz.com"
     ZILLIZ_TOKEN: str = "61e50779a14d6c243da6455b9c3888fa1002f1700ec85c0ac361ba9398eda5ed05170d447f499cee4cf066180ddc8a6283b84095"
-    MILVUS_COLLECTION: str = "BoldSearcher_v4"
+    MILVUS_COLLECTION: str = "BoldSearch"
     MILVUS_VECTOR_FIELD: str = "embedding"
     MILVUS_OUTPUT_FIELDS: str = (
         "frame_id,shot_id,video_id,asr_text,ocr_text,distance,thumbnail"
     )
     MILVUS_TEXT_SEARCH_PARAMS: str = '{"metric_type":"BM25"}'
     MILVUS_VECTOR_SEARCH_PARAMS: str = '{"metric_type":"IP","params":{"nprobe":10}}'
-    MILVUS_RANKER_WEIGHTS: str = "0.6,0.2,0.2"
+    MILVUS_RANKER_WEIGHTS: str = "0.5,0.5"
     SEARCH_TOP_K: int = 3000
 
     # ── Embedding encoder ─────────────────────────────────────────

@@ -332,47 +332,47 @@ def _hybrid_search(
         raise RuntimeError("pymilvus is required for Zilliz hybrid search") from exc
 
     reqs = []
-    if query_text:
+    # if query_text:
 
-        ocr_req = AnnSearchRequest(
-            data=[query_text],
-            anns_field="ocr_sparse",
-            param={
-                "metric_type": "BM25",
-                "params": {
-                    "inverted_index_algo": "DAAT_MAXSCORE",
-                    "bm25_k1": 1.8,
-                    "bm25_b": 0.75
-                }
-            },
-            limit=top_k,    
-            expr=expr,
-        )
-        reqs.append(ocr_req)
+    #     ocr_req = AnnSearchRequest(
+    #         data=[query_text],
+    #         anns_field="ocr_sparse",
+    #         param={
+    #             "metric_type": "BM25",
+    #             "params": {
+    #                 "inverted_index_algo": "DAAT_MAXSCORE",
+    #                 "bm25_k1": 1.8,
+    #                 "bm25_b": 0.75
+    #             }
+    #         },
+    #         limit=top_k,    
+    #         expr=expr,
+    #     )
+    #     reqs.append(ocr_req)
 
 
-        asr_req = AnnSearchRequest(
-            data=[query_text],
-            anns_field="asr_sparse",
-            param={
-                "metric_type": "BM25",
-                "params": {
-                    "inverted_index_algo": "DAAT_MAXSCORE",
-                    "bm25_k1": 1.8,
-                    "bm25_b": 0.75
-                }
-            },
-            limit=top_k,
-            expr=expr,
-        )
-        reqs.append(asr_req)
+    #     asr_req = AnnSearchRequest(
+    #         data=[query_text],
+    #         anns_field="asr_sparse",
+    #         param={
+    #             "metric_type": "BM25",
+    #             "params": {
+    #                 "inverted_index_algo": "DAAT_MAXSCORE",
+    #                 "bm25_k1": 1.8,
+    #                 "bm25_b": 0.75
+    #             }
+    #         },
+    #         limit=top_k,
+    #         expr=expr,
+    #     )
+    #     reqs.append(asr_req)
         
     if query_embedding is None:
         raise NotImplementedError("visual search is not yet implemented")
     
     visual_req = AnnSearchRequest(
                     data=[query_embedding],
-                    anns_field="embedding",
+                    anns_field="visual_embedding",
                     param={
                             "metric_type": "COSINE",
                             "params": {},
@@ -381,13 +381,26 @@ def _hybrid_search(
                     expr=expr,
                 )
     reqs.append(visual_req)
+
+    captioning_req = AnnSearchRequest(
+        data=[query_embedding],
+        anns_field="caption_embedding",
+        param={
+            "metric_type": "COSINE",
+            "params": {},
+        },
+        limit=top_k,
+        expr=expr,
+    )
+    reqs.append(captioning_req)
     
     # Check ocr,asr,visual query
-    print(f"Hybrid search with {len(reqs)} requests: ocr={query_text is not None}, asr={query_text is not None}, visual={query_embedding is not None}")
-    if not query_text:
-        req_weights = [1.0]
-    else:
-        req_weights = _ranker_weights(config, len(reqs))
+    print(f"Hybrid search with {len(reqs)}" )
+    # if not query_text:
+    #     req_weights = [1.0]
+    # else:
+    req_weights = _ranker_weights(config, len(reqs))
+    print(req_weights)
     if not reqs:
         raise ValueError("query text or query embedding is required")
 

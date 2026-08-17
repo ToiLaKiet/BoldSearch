@@ -117,7 +117,7 @@ function firstValue(item, keys) {
 /**
  * Tính đường dẫn ảnh thumbnail cho một keyframe.
  * Ưu tiên dùng trường frames_path/thumbnail từ API nếu có;
- * nếu không, tự ghép URL dạng /keyframes/{video_id}/{frame_id_3digits}.png
+ * nếu không, tự ghép URL dạng /keyframes/{video_id}/{int(frame_id)}.png
  */
 function keyframeImagePath(keyframe) {
   const explicitPath = firstValue(keyframe, ['frames_path', 'frame_path', 'thumbnail']);
@@ -127,9 +127,8 @@ function keyframeImagePath(keyframe) {
   const frameId = firstValue(keyframe, ['frame_id', 'frameId']);
   if (!videoId || frameId === null) return '';
 
-  // frame_id được pad 3 chữ số (vd: 5 → "005")
-  const frameFile = String(frameId).padStart(3, '0');
-  return `/keyframes/${videoId}/${frameFile}.png`;
+  // Dùng trực tiếp giá trị int của frame_id làm tên file (không padStart)
+  return `/keyframes/${videoId}/${parseInt(frameId, 10)}.png`;
 }
 
 /**
@@ -439,6 +438,7 @@ function FrameSlideshow({
   const [activeIdx, setActiveIdx] = useState(0); // index frame đang xem trong strip
   const [loading, setLoading] = useState(true);  // đang tải dữ liệu frame từ CSV
   const [lightboxSrc, setLightboxSrc] = useState(null); // src ảnh khi mở lightbox từ slideshow
+  const [vqaInput, setVqaInput] = useState('');  // VQA answer local state — tránh controlled-input lag
   const stripRef = useRef(null); // ref tới filmstrip để auto-scroll tới active thumb
 
   // Khi videoId hoặc currentFrameId thay đổi: tải lại danh sách frame và nhảy tới frame được chọn
@@ -461,6 +461,11 @@ function FrameSlideshow({
     if (active) {
       active.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
     }
+  }, [activeIdx]);
+
+  // Reset VQA input khi chuyển sang frame khác
+  useEffect(() => {
+    setVqaInput('');
   }, [activeIdx]);
 
   // Lắng nghe phím ← → để điều hướng frame không cần click chuột
@@ -487,9 +492,9 @@ function FrameSlideshow({
   }
 
   const activeFrame = frames[activeIdx]; // frame đang xem trong main viewer
-  // Đường dẫn ảnh của frame đang xem
+  // Đường dẫn ảnh của frame đang xem (dùng int của frame_id, không padStart)
   const imgSrc = activeFrame
-    ? `/keyframes/${videoId}/${String(activeFrame.frame_id).padStart(3, '0')}.png`
+    ? `/keyframes/${videoId}/${parseInt(activeFrame.frame_id, 10)}.png`
     : '';
   // Frame object chuẩn hóa để dùng trong hàm submit (có video_id)
   const activeSubmitFrame = activeFrame
@@ -499,10 +504,6 @@ function FrameSlideshow({
   const activeSubmitStatus = activeSubmitFrame && getSubmitStatus
     ? getSubmitStatus(activeSubmitFrame)
     : 'idle';
-  // Câu trả lời VQA đang nhập cho frame đang xem
-  const activeVqaAnswer = activeSubmitFrame && getVqaAnswer
-    ? getVqaAnswer(activeSubmitFrame)
-    : '';
 
   return (
     <div className="slideshow-wrapper">
@@ -564,7 +565,7 @@ function FrameSlideshow({
 
       <div className="ss-strip" ref={stripRef}>
         {frames.map((f, idx) => {
-          const thumbSrc = `/keyframes/${videoId}/${String(f.frame_id).padStart(3, '0')}.png`;
+          const thumbSrc = `/keyframes/${videoId}/${parseInt(f.frame_id, 10)}.png`;
           const isCurrent = f.frame_id === parseInt(currentFrameId, 10);
           const isActive = idx === activeIdx;
           const frameLikeForStrip = { ...f, video_id: videoId, videoId };
@@ -625,12 +626,13 @@ function FrameSlideshow({
                   type="text"
                   className="vqa-input ss-vqa-input"
                   placeholder="Enter answer…"
-                  value={activeVqaAnswer}
-                  onChange={(e) => setVqaAnswer?.(activeSubmitFrame, e.target.value)}
+                  value={vqaInput}
+                  onChange={(e) => setVqaInput(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter' && activeVqaAnswer.trim()) {
+                    if (e.key === 'Enter' && vqaInput.trim()) {
                       e.preventDefault();
-                      onSubmitVqa?.(activeSubmitFrame);
+                      // Truyền answer trực tiếp để tránh React batch state issue
+                      onSubmitVqa?.(activeSubmitFrame, vqaInput);
                     }
                   }}
                   aria-label="VQA answer"
@@ -638,8 +640,10 @@ function FrameSlideshow({
                 <button
                   type="button"
                   className={submitButtonClassName('ss-submit-big', activeSubmitStatus)}
-                  disabled={activeSubmitStatus === 'loading' || !activeVqaAnswer.trim()}
-                  onClick={() => onSubmitVqa?.(activeSubmitFrame)}
+                  disabled={activeSubmitStatus === 'loading' || !vqaInput.trim()}
+                  onClick={() => {
+                    onSubmitVqa?.(activeSubmitFrame, vqaInput);
+                  }}
                 >
                   {submitButtonLabel(activeSubmitStatus)}
                 </button>
@@ -805,7 +809,7 @@ export default function App() {
    * - KIS: tìm kiếm thông thường bằng text/objects
    */
   function getRequestTask() {
-    return imageCue || modalities.includes('image') ? 'VKIS' : 'KIS';
+    return imageCue || modalities.includes('image') ? 'KIS' : 'KIS';
   }
 
   /**
@@ -844,13 +848,13 @@ export default function App() {
 
   /**
    * Submit VQA: gửi video_id + frame_id + answer lên POST /api/search/submit/vqa.
-   * Không submit nếu answer rỗng hoặc đang trong quá trình submit.
-   * Log payload ra console trước khi gọi API.
+   * Nhận answer trực tiếp qua tham số để tránh vấn đề React batch state update.
    */
-  async function submitVQA(frameLike) {
+  async function submitVQA(frameLike, answerDirect) {
     const videoId = firstValue(frameLike, ['video_id', 'videoId']);
     const frameId = firstValue(frameLike, ['frame_id', 'frameId']);
-    const answer = getVqaAnswer(frameLike);
+    // Dùng answerDirect nếu được truyền, fallback về state lookup
+    const answer = answerDirect ?? getVqaAnswer(frameLike);
     const submitKey = submitKeyForFrame(frameLike);
 
     if (!videoId || frameId === null || frameId === undefined || !answer) return;
@@ -868,7 +872,9 @@ export default function App() {
       });
       if (!response.ok) throw new Error('VQA Submit API returned an error');
       await response.json();
-      setSubmitStatusByFrame((curr) => ({ ...curr, [submitKey]: 'success' }));
+      // Clear VQA answer and status after successful submit
+      setVqaAnswers({});
+      setSubmitStatusByFrame({});
     } catch {
       setSubmitStatusByFrame((curr) => ({ ...curr, [submitKey]: 'error' }));
     }
@@ -908,12 +914,16 @@ export default function App() {
     const frames = Object.values(trakedFrames);
     if (!frames.length || trakeSubmitStatus === 'loading') return;
 
-    // Nhóm frame_id theo video_id (trường hợp thường gặp: tất cả cùng 1 video)
+    // Nhóm frame_id theo video_id, mỗi frame chỉ xuất hiện 1 lần (đã đảm bảo bởi trakedFrameKey)
     const byVideo = {};
     for (const f of frames) {
       const vid = firstValue(f, ['video_id', 'videoId']) || '';
       if (!byVideo[vid]) byVideo[vid] = [];
-      byVideo[vid].push(firstValue(f, ['frame_id', 'frameId']));
+      byVideo[vid].push(parseInt(firstValue(f, ['frame_id', 'frameId']), 10));
+    }
+    // Sắp xếp frame_ids theo thứ tự tăng dần trong mỗi video
+    for (const vid of Object.keys(byVideo)) {
+      byVideo[vid].sort((a, b) => a - b);
     }
 
     const payloads = Object.entries(byVideo).map(([video_id, frame_ids]) => ({
@@ -935,7 +945,10 @@ export default function App() {
           }).then((r) => { if (!r.ok) throw new Error('TRAKE API error'); })
         )
       );
-      setTrakeSubmitStatus('success');
+      // Clear TRAKE selection and status after successful submit
+      setTrakedFrames({});
+      setTrakeSubmitStatus('idle');
+      setSubmitStatusByFrame({});
     } catch {
       setTrakeSubmitStatus('error');
     }
@@ -983,10 +996,8 @@ export default function App() {
       }
 
       await response.json();
-      setSubmitStatusByFrame((current) => ({
-        ...current,
-        [submitKey]: 'success',
-      }));
+      // Clear all submit status after successful KIS submit
+      setSubmitStatusByFrame({});
 
     } catch {
       setSubmitStatusByFrame((current) => ({
@@ -1528,7 +1539,8 @@ export default function App() {
                     tabIndex={0}
                     className={[
                       'shot-card',
-                      selectedKeyframe?.id === keyframe.id ? 'active' : '',
+                      // So sánh bằng submitKey (video_id + frame_id) thay vì .id có thể undefined
+                      selectedKeyframe && submitKeyForFrame(selectedKeyframe) === submitKeyForFrame(keyframe) ? 'active' : '',
                       taskMode === 'TRAKE' && trakeSelected ? 'trake-selected' : '',
                     ].filter(Boolean).join(' ')}
                     onClick={() => handleSelectKeyframe(keyframe)}
@@ -1571,28 +1583,10 @@ export default function App() {
                         </button>
                       )}
 
-                      {/* VQA: answer input + submit */}
+                      {/* VQA: show a hint to open detail panel for answering */}
                       {taskMode === 'VQA' && (
                         <div className="vqa-answer-field" onClick={(e) => e.stopPropagation()}>
-                          <input
-                            type="text"
-                            className="vqa-input"
-                            placeholder="Answer…"
-                            value={vqaAnswer}
-                            onChange={(e) => setVqaAnswer(keyframe, e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') { e.preventDefault(); submitVQA(keyframe); }
-                            }}
-                            aria-label="VQA answer"
-                          />
-                          <button
-                            type="button"
-                            className={submitButtonClassName('card-submit-btn vqa-submit-btn', submitStatus)}
-                            disabled={submitStatus === 'loading' || !vqaAnswer.trim()}
-                            onClick={(e) => { e.stopPropagation(); submitVQA(keyframe); }}
-                          >
-                            {submitButtonLabel(submitStatus)}
-                          </button>
+                          <span className="vqa-card-hint">Click card to answer</span>
                         </div>
                       )}
 
@@ -1618,16 +1612,18 @@ export default function App() {
         />
       )}
 
-      {/* ── Detail Panel (Slide-out) ─────────────────────────── */}
+      {/* ── Detail Modal (Centered Popup) ─────────────────────── */}
       {selectedKeyframe && (
-        <>
+        <div
+          className="detail-overlay"
+          onClick={() => setSelectedKeyframe(null)}
+        >
           <div
-            className="detail-overlay"
-            onClick={() => setSelectedKeyframe(null)}
-          />
-          <aside className="detail-panel">
+            className="detail-modal"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="detail-header">
-              <h3>Keyframe Details</h3>
+              <h3>Keyframe Details — {selectedVideoId} / Frame {selectedFrameId}</h3>
               <button
                 className="btn-close"
                 type="button"
@@ -1687,21 +1683,29 @@ export default function App() {
                       <p className="trake-panel-empty">Click cards in the grid or use the slideshow to select frames.</p>
                     ) : (
                       <div className="trake-frame-list">
-                        {Object.values(trakedFrames).map((f) => {
-                          const vid = firstValue(f, ['video_id', 'videoId']);
-                          const fid = firstValue(f, ['frame_id', 'frameId']);
-                          return (
-                            <div key={trakedFrameKey(f)} className="trake-frame-chip">
-                              <span>{vid} / {fid}</span>
-                              <button
-                                type="button"
-                                className="trake-chip-remove"
-                                onClick={() => toggleTrakeFrame(f)}
-                                title="Remove"
-                              >✕</button>
-                            </div>
-                          );
-                        })}
+                        {Object.values(trakedFrames)
+                          // Sắp xếp theo frame_id tăng dần
+                          .sort((a, b) => {
+                            const fa = parseInt(firstValue(a, ['frame_id', 'frameId']), 10) || 0;
+                            const fb = parseInt(firstValue(b, ['frame_id', 'frameId']), 10) || 0;
+                            return fa - fb;
+                          })
+                          .map((f) => {
+                            const vid = firstValue(f, ['video_id', 'videoId']);
+                            const fid = parseInt(firstValue(f, ['frame_id', 'frameId']), 10);
+                            return (
+                              <div key={trakedFrameKey(f)} className="trake-frame-chip">
+                                <span className="trake-chip-vid">{vid}</span>
+                                <span className="trake-chip-fid">#{fid}</span>
+                                <button
+                                  type="button"
+                                  className="trake-chip-remove"
+                                  onClick={() => toggleTrakeFrame(f)}
+                                  title="Remove"
+                                >✕</button>
+                              </div>
+                            );
+                          })}
                       </div>
                     )}
 
@@ -1769,8 +1773,8 @@ export default function App() {
                 )}
               </div>
             </div>
-          </aside>
-        </>
+          </div>
+        </div>
       )}
     </div>
   );
