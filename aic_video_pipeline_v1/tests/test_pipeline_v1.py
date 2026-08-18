@@ -1,5 +1,4 @@
 import json
-import subprocess
 import threading
 from pathlib import Path
 
@@ -8,10 +7,7 @@ from PIL import Image
 
 from aic_video_pipeline_v1.models import FrameRecord
 from aic_video_pipeline_v1.orchestrator import VideoPipelineV1
-from aic_video_pipeline_v1.services import (_autoshot_predictions_to_scenes,
-                                            _decode_autoshot_frames,
-                                            _iter_autoshot_batches,
-                                            embed_frames, index_frames,
+from aic_video_pipeline_v1.services import (embed_frames, index_frames,
                                             map_frames_to_shots)
 from aic_video_pipeline_v1.similarity import (OnlineRepresentativeSimilarity,
                                               apply_representative_similarity,
@@ -22,50 +18,6 @@ from aic_video_pipeline_v1.storage import NpyVectorStore
 def make_frame(index: int, shot: str = "shot_000001") -> FrameRecord:
     return FrameRecord("L21_V01", str(index), index, index * 40, shot,
                        mapping_status="EXTRACTED", embedding_status="EMBEDDED")
-
-
-def test_autoshot_decode_uses_system_ffmpeg_without_python_wrapper(
-        tmp_path: Path, monkeypatch) -> None:
-    video = tmp_path / "input.mp4"
-    video.write_bytes(b"video")
-    raw = np.arange(2 * 3 * 4 * 3, dtype=np.uint8).tobytes()
-    captured: dict[str, object] = {}
-
-    def fake_run(command, **kwargs):
-        captured["command"] = command
-        captured["kwargs"] = kwargs
-        return subprocess.CompletedProcess(command, 0, raw, b"")
-
-    monkeypatch.setattr("aic_video_pipeline_v1.services.subprocess.run", fake_run)
-    frames = _decode_autoshot_frames(video, width=4, height=3)
-    assert frames.shape == (2, 3, 4, 3)
-    assert captured["command"] == [
-        "ffmpeg", "-nostdin", "-hide_banner", "-loglevel", "error",
-        "-i", str(video), "-f", "rawvideo", "-pix_fmt", "rgb24",
-        "-s", "4x3", "pipe:1",
-    ]
-
-
-def test_autoshot_batching_and_scene_conversion_match_original_logic() -> None:
-    frames = np.arange(51, dtype=np.uint8).reshape(51, 1, 1, 1)
-    batches = list(_iter_autoshot_batches(frames))
-    assert len(batches) == 2
-    assert all(batch.shape == (100, 1, 1, 1) for batch in batches)
-    np.testing.assert_array_equal(batches[0][25:75, 0, 0, 0], np.arange(50))
-    np.testing.assert_array_equal(batches[1][:25, 0, 0, 0], np.arange(25, 50))
-    np.testing.assert_array_equal(batches[1][25:75, 0, 0, 0],
-                                  np.full(50, 50))
-    recovered = np.concatenate([batch[25:75] for batch in batches])[:len(frames)]
-    np.testing.assert_array_equal(recovered, frames)
-
-    scenes = _autoshot_predictions_to_scenes(
-        np.array([0, 0, 1, 0, 0, 1, 0], dtype=np.uint8)
-    )
-    np.testing.assert_array_equal(scenes, np.array([[0, 2], [3, 5], [6, 6]]))
-    np.testing.assert_array_equal(
-        _autoshot_predictions_to_scenes(np.ones(7, dtype=np.uint8)),
-        np.array([[0, 6]], dtype=np.int32),
-    )
 
 
 def test_indexer_samples_without_batch_metadata() -> None:

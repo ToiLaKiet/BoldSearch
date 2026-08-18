@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import os
-import subprocess
 import sys
 import tempfile
 import warnings
@@ -17,76 +16,6 @@ from .storage import NpyVectorStore, sha256
 
 
 _AUTOSHOT_MODEL_CACHE: dict[tuple[str, str, str], object] = {}
-
-
-def _decode_autoshot_frames(path: Path, width: int = 48,
-                            height: int = 27) -> np.ndarray:
-    """Decode RGB frames through the ffmpeg binary without ffmpeg-python.
-
-    This is equivalent to AutoShot's original ``utils.get_frames`` command,
-    while avoiding an unnecessary Python package in offline Kaggle images.
-    """
-    if width <= 0 or height <= 0:
-        raise ValueError("AutoShot frame size must be positive")
-    command = [
-        "ffmpeg", "-nostdin", "-hide_banner", "-loglevel", "error",
-        "-i", str(path), "-f", "rawvideo", "-pix_fmt", "rgb24",
-        "-s", f"{width}x{height}", "pipe:1",
-    ]
-    try:
-        result = subprocess.run(
-            command,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            check=False,
-        )
-    except FileNotFoundError as error:
-        raise RuntimeError("ffmpeg executable is required by AutoShot") from error
-    if result.returncode != 0:
-        detail = result.stderr.decode("utf-8", errors="replace").strip()
-        raise ValueError(
-            f"ffmpeg cannot decode AutoShot input: {detail or path}"
-        )
-    bytes_per_frame = width * height * 3
-    if not result.stdout or len(result.stdout) % bytes_per_frame:
-        raise ValueError("ffmpeg returned invalid AutoShot RGB frame data")
-    return np.frombuffer(result.stdout, dtype=np.uint8).reshape(
-        -1, height, width, 3
-    )
-
-
-def _iter_autoshot_batches(frames: np.ndarray) -> Iterator[np.ndarray]:
-    """Yield the same 100-frame windows as AutoShot's original utility."""
-    if len(frames) == 0:
-        raise ValueError("AutoShot decoded zero frames")
-    remainder = (-len(frames)) % 50
-    padded = np.concatenate(
-        [frames[:1]] * 25 + [frames] + [frames[-1:]] * (remainder + 25),
-        axis=0,
-    )
-    for index in range(0, len(padded) - 50, 50):
-        yield padded[index:index + 100]
-
-
-def _autoshot_predictions_to_scenes(predictions: np.ndarray) -> np.ndarray:
-    """Convert transition labels using AutoShot's original scene semantics."""
-    values = np.asarray(predictions).reshape(-1)
-    if len(values) == 0:
-        raise ValueError("AutoShot produced zero predictions")
-    scenes: list[list[int]] = []
-    previous, start = 0, 0
-    current = 0
-    for index, current in enumerate(values):
-        if previous == 1 and current == 0:
-            start = index
-        if previous == 0 and current == 1 and index != 0:
-            scenes.append([start, index])
-        previous = int(current)
-    if current == 0:
-        scenes.append([start, len(values) - 1])
-    if not scenes:
-        return np.array([[0, len(values) - 1]], dtype=np.int32)
-    return np.asarray(scenes, dtype=np.int32)
 
 
 def probe_video(path: Path) -> dict:
@@ -148,10 +77,11 @@ def detect_shots(video_id: str, path: Path, metadata: dict, cfg: dict) -> dict:
         os.environ.setdefault("MPLCONFIGDIR", str(Path(tempfile.gettempdir()) / "aic_video_pipeline_v1_mpl"))
         import torch
         from supernet_flattransf_3_8_8_8_13_12_0_16_60 import TransNetV2Supernet
+        from utils import get_batches, get_frames, predictions_to_scenes
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            small = _decode_autoshot_frames(path, width=48, height=27)
+            small = get_frames(str(path), width=48, height=27)
             device = "cuda" if torch.cuda.is_available() else "cpu"
             cache_key = (str(root.resolve()), str(checkpoint.resolve()), device)
             model = _AUTOSHOT_MODEL_CACHE.get(cache_key)
@@ -169,13 +99,13 @@ def detect_shots(video_id: str, path: Path, metadata: dict, cfg: dict) -> dict:
                 _AUTOSHOT_MODEL_CACHE[cache_key] = model
             predictions = []
             with torch.inference_mode():
-                for batch in _iter_autoshot_batches(small):
+                for batch in get_batches(small):
                     tensor = torch.from_numpy(batch.transpose((3, 0, 1, 2))[None]).to(device)
                     output = model(tensor)
                     output = output[0] if isinstance(output, tuple) else output
                     predictions.append(torch.sigmoid(output[0]).detach().cpu().numpy()[25:75])
         values = np.concatenate(predictions)[:len(small)]
-        raw_scenes = _autoshot_predictions_to_scenes(
+        raw_scenes = predictions_to_scenes(
             (values > float(cfg.get("threshold", 0.296))).astype(np.uint8)
         )
         scenes = _normalize_scenes(raw_scenes, metadata["total_frames"])

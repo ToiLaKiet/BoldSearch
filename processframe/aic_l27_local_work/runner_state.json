@@ -1,0 +1,26 @@
+{
+  "schema_version": "1.0",
+  "archives": {
+    "Videos_L27_a.zip": {
+      "completed_members": [
+        "video/L27_V001.mp4",
+        "video/L27_V002.mp4",
+        "video/L27_V003.mp4",
+        "video/L27_V004.mp4",
+        "video/L27_V005.mp4",
+        "video/L27_V006.mp4",
+        "video/L27_V007.mp4",
+        "video/L27_V008.mp4",
+        "video/L27_V009.mp4",
+        "video/L27_V010.mp4",
+        "video/L27_V011.mp4",
+        "video/L27_V012.mp4",
+        "video/L27_V013.mp4",
+        "video/L27_V014.mp4",
+        "video/L27_V015.mp4",
+        "video/L27_V016.mp4"
+      ],
+      "done": true
+    }
+  }
+}

@@ -1,17 +1,22 @@
-frame_id:
-  zero_pad_width: 8
 indexer:
-  sample_every_frames: 25
+  # Independent frame branch: select 0, 10, 20, ... from the source timeline.
+  sample_every_frames: 10
 autoshot:
   root: /home/long/Documents/AIC/AutoShot
   checkpoint: /home/long/Documents/AIC/AutoShot/ckpt_0_200_0.pth
   threshold: 0.296
   allow_fallback: false
 embedding:
-  provider: fgclip
-  model_id: qihoo360/fg-clip-large
-  model_version: fgclip_v1
-  model_path: ../../../models/fgclip
+  provider: fgclip2
+  model_id: qihoo360/fg-clip2-large
+  revision: 4d1d5dc35c716902f07c172dbfc23b82a7bc6bf3
+  model_version: fgclip2_large_v1
+  model_path: ../../../models/fgclip2
+  # Start with four FP32 images on a T4. The embedder halves this automatically
+  # on CUDA OOM and remembers the working size for later batches/videos.
+  batch_size: 4
+  # Keep resume metadata useful without rewriting JSON for every small batch.
+  checkpoint_every_frames: 100
 similarity:
   # score >= threshold is DUPLICATE relative to the latest KEPT representative
   threshold: 0.5

@@ -167,8 +167,9 @@ với mỗi shot:
 - Chuỗi dài frame giống nhau được gom về một đại diện thay vì giữ một frame
   trong mỗi cặp.
 - Sau similarity, chỉ PNG/NPY của `KEPT` được giữ lại.
-- Mỗi lần chạy xóa đúng output của `video_id` trong thư mục V1, không chạm dữ
-  liệu của pipeline cũ.
+- Mặc định V1 dùng checkpoint để tiếp tục đúng `video_id`; chỉ khi dùng
+  `--fresh` hoặc source/config thay đổi thì mới xóa output của `video_id`, và
+  không chạm dữ liệu component khác.
 
 ## 7. So sánh hai phiên bản
 
