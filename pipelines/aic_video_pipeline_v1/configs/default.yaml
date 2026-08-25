@@ -19,6 +19,6 @@ embedding:
   checkpoint_every_frames: 100
 similarity:
   # score >= threshold is DUPLICATE relative to the latest KEPT representative
-  threshold: 0.5
+  threshold: 0.8
 paths:
   data_root: ../data
