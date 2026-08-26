@@ -1,0 +1,10 @@
+{"case_id":"kis-001","task_type":"KIS","query":{"texts":["a person holding a red umbrella"]},"relevant_frames":[{"video_id":"SYNTH_V001","frame_id":"100","relevance":2}],"source":"synthetic-template"}
+{"case_id":"kis-002","task_type":"KIS","query":{"texts":["a dog standing beside a bicycle"]},"relevant_frames":[{"video_id":"SYNTH_V002","frame_id":"140","relevance":2}],"source":"synthetic-template"}
+{"case_id":"kis-003","task_type":"KIS","query":{"texts":["a football player wearing a yellow jersey"]},"relevant_frames":[{"video_id":"SYNTH_V003","frame_id":"220","relevance":2}],"source":"synthetic-template"}
+{"case_id":"kis-004","task_type":"KIS","query":{"texts":["a speaker standing at a podium"]},"relevant_frames":[{"video_id":"SYNTH_V004","frame_id":"315","relevance":2}],"source":"synthetic-template"}
+{"case_id":"kis-005","task_type":"KIS","query":{"texts":["a blue car entering a gate"]},"relevant_frames":[{"video_id":"SYNTH_V005","frame_id":"405","relevance":2}],"source":"synthetic-template"}
+{"case_id":"kis-006","task_type":"KIS","query":{"texts":["a woman holding a bouquet of flowers"]},"relevant_frames":[{"video_id":"SYNTH_V006","frame_id":"512","relevance":2}],"source":"synthetic-template"}
+{"case_id":"kis-007","task_type":"KIS","query":{"texts":["a train crossing a bridge"]},"relevant_frames":[{"video_id":"SYNTH_V007","frame_id":"620","relevance":2}],"source":"synthetic-template"}
+{"case_id":"kis-008","task_type":"KIS","query":{"texts":["a child carrying a red backpack"]},"relevant_frames":[{"video_id":"SYNTH_V008","frame_id":"735","relevance":2}],"source":"synthetic-template"}
+{"case_id":"kis-009","task_type":"KIS","query":{"texts":["a chef cooking with a frying pan"]},"relevant_frames":[{"video_id":"SYNTH_V009","frame_id":"840","relevance":2}],"source":"synthetic-template"}
+{"case_id":"kis-010","task_type":"KIS","query":{"texts":["a sunset over a lake"]},"relevant_frames":[{"video_id":"SYNTH_V010","frame_id":"955","relevance":2}],"source":"synthetic-template"}
