@@ -35,10 +35,7 @@ build/
 zilliz-cloud-AIC2026-username-password.txt
 
 # Data, model, and benchmark artifacts
-*.pdf
-*.pickle
 *.pkl
-*.pth
 *.pt
 *.onnx
 *.faiss
@@ -50,6 +47,9 @@ data/raw/
 data/processed/
 benchmark-reports/
 vector-db-data/
+/data/
 
 # Local code indexes and generated caches
 .codegraph/
+plans/*
+!plans/ANCHORS.md
