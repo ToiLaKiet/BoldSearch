@@ -22,10 +22,9 @@ _REQUIRED_COLUMNS = (
 
 
 def load_object_index(config: AppConfig) -> Optional[FrameObjectIndex]:
-    csv_path = str(config.OBJECTS_CSV_PATH or "").strip()
+    csv_path = config.OBJECTS_CSV_PATH.strip()
     if not csv_path:
         return None
-
     path = _resolve_csv_path(csv_path)
     if not path.exists():
         raise RuntimeError(f"OBJECTS_CSV_PATH does not exist: {path}")

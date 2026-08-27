@@ -2,9 +2,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 ENV_FILE = Path(__file__).resolve().with_name(".env")
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+DEFAULT_DATA_DIR = PROJECT_ROOT / "data"
 
 
 class AppConfig(BaseSettings):
@@ -39,6 +42,12 @@ class AppConfig(BaseSettings):
     # ── Object detection metadata ───────────────────────────────
     OBJECTS_CSV_PATH: str = "detections.csv"
 
+    # ── Local data & evaluation artifacts ────────────────────────
+    DATA_DIR: Path = DEFAULT_DATA_DIR
+    KEYFRAMES_DIR: Path = DEFAULT_DATA_DIR / "keyframes"
+    KEYFRAME_MAP_DIR: Path = DEFAULT_DATA_DIR / "map-keyframes"
+    EVALUATION_ARTIFACT_DIR: Path = DEFAULT_DATA_DIR / "evaluation-artifacts"
+
     # ── Response presentation ────────────────────────────────────
     FRAME_IMAGE_URL_TEMPLATE: str = ""
     INCLUDE_EMBEDDING_IN_RESPONSE: bool = False
@@ -48,6 +57,33 @@ class AppConfig(BaseSettings):
         env_file_encoding="utf-8",
         extra="ignore",
     )
+
+    @field_validator(
+        "DATA_DIR",
+        "KEYFRAMES_DIR",
+        "KEYFRAME_MAP_DIR",
+        "EVALUATION_ARTIFACT_DIR",
+        mode="after",
+    )
+    @classmethod
+    def _resolve_local_path(cls, value: Path) -> Path:
+        path = value.expanduser()
+        return path.resolve() if path.is_absolute() else (ENV_FILE.parent / path).resolve()
+
+    @model_validator(mode="after")
+    def _re_root_data_children(self) -> "AppConfig":
+        if "DATA_DIR" not in self.model_fields_set:
+            return self
+
+        child_paths = {
+            "KEYFRAMES_DIR": "keyframes",
+            "KEYFRAME_MAP_DIR": "map-keyframes",
+            "EVALUATION_ARTIFACT_DIR": "evaluation-artifacts",
+        }
+        for field_name, child_path in child_paths.items():
+            if field_name not in self.model_fields_set:
+                setattr(self, field_name, self.DATA_DIR / child_path)
+        return self
 
 
 app_config = AppConfig()

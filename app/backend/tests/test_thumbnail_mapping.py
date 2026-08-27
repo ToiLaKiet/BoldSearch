@@ -14,7 +14,7 @@ def test_thumbnail_uses_nearest_official_keyframe_mapping(tmp_path) -> None:
     )
     config = SimpleNamespace(
         FRAME_IMAGE_URL_TEMPLATE="/keyframes/{video_id}/{keyframe_number}.jpg",
-        KEYFRAME_MAP_DIR=str(tmp_path),
+        KEYFRAME_MAP_DIR=tmp_path,
     )
 
     thumbnail = _thumbnail(
@@ -33,7 +33,7 @@ def test_thumbnail_pads_official_keyframe_numbers_to_three_digits(tmp_path) -> N
     )
     config = SimpleNamespace(
         FRAME_IMAGE_URL_TEMPLATE="/keyframes/{video_id}/{keyframe_number}.jpg",
-        KEYFRAME_MAP_DIR=str(tmp_path),
+        KEYFRAME_MAP_DIR=tmp_path,
     )
 
     thumbnail = _thumbnail(
