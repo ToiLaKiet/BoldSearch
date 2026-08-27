@@ -1,99 +1,97 @@
-# Architecture Guide
+# BoldSearch Architecture
 
-Status: **project convention + planning baseline**  
+Status: **current runtime and approved evolution**
 Project: HCM AI Challenge Pipeline 2026 / BoldSearch
 
-## Source and claim status
+## Scope and evidence
+
+This document describes the implementation in `app/` as of 2026-08-27 and the smallest approved direction for evolving it. It does not claim that planned adapters, benchmark tooling, or services already exist.
 
 | Claim | Status | Evidence |
 |---|---|---|
-| Current app is a Flask API plus Vite React UI prototype. | Verified | `app/README.md`, `app/backend/app.py`, `app/frontend/package.json` |
-| Current search is lexical/object/color/temporal over sample `shots.json`. | Verified | `app/backend/app.py`, `app/backend/data/shots.json` |
-| Embedding/vector-store pipeline is planned but not production-implemented. | Verified | dependency inventory and `docs/technical/00-embedding-vector-store-evaluation.md` |
-| Final vector-store provider should be chosen by benchmark, not preference. | Inferred project decision | `docs/technical/00-embedding-vector-store-evaluation.md` |
-| BEiT-3 checkpoint checksum, dataset scale, SLO, and benchmark weights remain open. | Unresolved | `app/backend/config/embedding.yaml`; no ADR yet |
+| The UI is a Vite React single-page application. | Verified | `app/frontend/src/App.jsx`, `app/frontend/package.json` |
+| The API is a FastAPI process with an application lifespan. | Verified | `app/backend/main.py` |
+| Search uses FG-CLIP query embeddings and Zilliz/Milvus hybrid search over visual and caption embedding fields. | Verified | `app/backend/encoders/fg_clip.py`, `app/backend/search/service.py` |
+| Object metadata is loaded from `detections.csv` into memory at startup and enriches results after retrieval. | Verified | `app/backend/main.py`, `app/backend/search/object_index.py` |
+| Submissions are local accepted payloads; exporting the official BTC package remains a manual workflow. | Verified | `app/backend/search/router.py`, `docs/SUBMISSION_GUIDE_R1.md` |
+| A benchmark-driven second vector-store provider is not currently justified. | Decision | Current runtime has one provider and no shared provider contract tests. |
 
-## Architecture style
+## Architectural decision
 
-Use a **modular monolith** for the 2026 challenge pipeline until benchmark or deployment constraints prove a split service is needed.
+BoldSearch remains a **modular monolith**: one React UI, one FastAPI process, and managed retrieval infrastructure. Retrieval quality, repeatability, and operational simplicity are the current priorities; splitting the application into services would add deployment and debugging cost without solving a demonstrated constraint.
 
-Why:
+The `search` capability is the first-class backend boundary. Its public HTTP contract lives in `search/router.py` and `search/schema.py`; its workflow currently lives in `search/service.py`. The service is allowed to orchestrate the current single Milvus provider, but provider SDK types and response shapes must not spread beyond this capability.
 
-- The current system is small and benefits from fast local iteration.
-- Retrieval quality and benchmark correctness are more important than service topology.
-- Provider adapters already isolate the likely volatile parts: model runtimes and vector databases.
+## Current system view
 
-## System view
-
-Source diagram: `architecture/system-overview.mmd`; exported preview: `architecture/system-overview.svg`.
+Source diagram: `architecture/system-overview.mmd`; exported preview: [`architecture/system-overview.svg`](architecture/system-overview.svg).
 
 ```text
-Challenge operator / participant
-  -> React UI
-  -> Flask API
-  -> retrieval/submission use cases
-  -> pure scoring and validation policies
-  -> shot catalog repository, embedding encoders, vector-store adapters
-  -> sample JSON now; embedding artifacts and selected vector DB later
+Challenge operator
+  -> Vite React UI
+  -> FastAPI /api/search routes
+  -> search workflow
+       -> FG-CLIP encoder
+       -> Zilliz/Milvus hybrid search
+       -> in-memory detection metadata
+  -> normalized frame results and local submission payloads
+
+FastAPI serves official keyframe images and frame-map CSV files from ignored root `data/`; Vite proxies them in development.
 ```
 
-## Main capabilities
+## Runtime responsibilities
 
-| Capability | Purpose | Current state | Target direction |
-|---|---|---|---|
-| `shot_catalog` | Load and validate shot/keyframe metadata. | JSON file loaded directly by Flask. | Repository module with typed records and fixture-backed tests. |
-| `retrieval` | Validate query, score/search candidates, group keyframes to shots, shape results. | Inline functions in `app.py`. | Pure scoring plus application use case. |
-| `embedding` | Encode text/images with FG-CLIP or BEiT-3 and write immutable artifacts. | Two encoder adapters plus YAML selection. | Artifact manifest/checksum validation and exact offline evaluation. |
-| `vector_store` | Store/search vectors through a provider-neutral contract. | Not implemented. | Milvus and Qdrant adapters behind shared contract tests. |
-| `benchmark` | Compare providers, index settings, and models reproducibly. | Planning doc only. | Harness with fixed manifests, query labels, raw run metadata, and reports. |
-| `submission` | Prepare challenge answer payloads and audit accepted submissions. | `/api/submit` returns a local payload. | Submission use case with stable payload contract and audit record. |
-| `frontend` | Operator UI for KIS/VKIS query construction and result review. | React prototype. | Keep API client thin; move reusable UI behaviors into hooks/components only when needed. |
+| Boundary | Owns | Current implementation |
+|---|---|---|
+| Frontend | Query composition, task selection, result review, local submission state. | `app/frontend/src/App.jsx`, `taskMode.js` |
+| HTTP edge | Pydantic validation, endpoint selection, and HTTP error mapping. | `search/router.py`, `search/schema.py` |
+| Search workflow | Text/image query orchestration, staged temporal narrowing, object enrichment, and response shaping. | `search/service.py` |
+| Model adapter | Long-lived FG-CLIP model state and normalized text/image embeddings. | `encoders/fg_clip.py` |
+| Retrieval adapter | Zilliz/Milvus client lifecycle and hybrid search invocation. | `connections.py`, Milvus-specific code in `search/service.py` |
+| Metadata store | CSV validation and frame-to-object lookup. | `search/object_index.py`, `detections.csv` |
+| Static media | Official keyframes and per-video frame maps. | ignored `data/keyframes`, `data/map-keyframes`, served by FastAPI |
 
-## Request flow
+`main.py` is the composition root. Its FastAPI lifespan loads the object index, opens the Milvus client, and loads FG-CLIP once; these resources are stored in `app.state`. Shutdown explicitly closes the Milvus client; the in-memory object index and encoder are released with process teardown.
 
-### Current prototype search
+## Request flows
 
-1. UI sends `POST /api/search` with query, task, modalities, objects, colors, temporal cue, and minimum confidence.
-2. Flask route parses the payload.
-3. `score_shot` ranks each shot from `shots.json`.
-4. Results are sorted by score and returned to the UI.
+### Text and staged temporal retrieval
 
-### Target vector-backed search
+1. The UI sends `POST /api/search/query` with one or more text queries, task mode, object hints, and an optional previous result context.
+2. The router validates the Pydantic request and delegates to `run_text_query`.
+3. The search workflow translates text opportunistically, encodes it with FG-CLIP, and queries the Milvus visual and caption embedding fields with a weighted ranker.
+4. For multiple queries, each subsequent query is scoped to the prior frame context through a Milvus expression.
+5. Returned rows are enriched from the in-memory detection index, mapped to the public `SearchResponse`, and rendered with static keyframe URLs.
 
-1. Route validates task, query/reference image, filters, and top-k.
-2. Retrieval use case selects the configured model namespace.
-3. Encoder adapter creates a query vector using the same model/checkpoint as the indexed artifact.
-4. VectorStore adapter searches the selected provider and normalizes score semantics to **higher is better**.
-5. Retrieval use case groups keyframes by `shot_id`, applies tie-breaking, and returns metadata.
-6. Route maps the result to the public API response.
+### Visual retrieval
 
-## Offline pipeline
+1. The UI sends `POST /api/search/visual_query` with a base64 image or an embedding.
+2. The workflow decodes and normalizes the image when an embedding is not already supplied.
+3. FG-CLIP creates the image embedding; the same Milvus hybrid path returns and maps frames.
 
-1. Extract videos into deterministic shot/keyframe metadata.
-2. Encode keyframes with a pinned model/checkpoint.
-3. Validate vector dimension, finite values, dtype, and L2 norm.
-4. Write an immutable artifact with manifest and checksum.
-5. Run exact cosine evaluation and select one model baseline.
-6. In a later phase, ingest that locked artifact into Milvus and Qdrant through the same contract.
-7. Run exact-search correctness and ANN benchmarks, then record an ADR before choosing a provider.
+### Submission
 
-Detailed vector-store design lives in `docs/technical/00-embedding-vector-store-evaluation.md`.
+1. The UI posts KIS, VQA, or TRAKE selections to `/api/search/submit/*`.
+2. The API validates and returns a local accepted payload.
+3. The operator transfers the result to the official BTC CSV/ZIP submission workflow described in `docs/SUBMISSION_GUIDE_R1.md`.
 
-## Runtime boundaries
+## Evolution plan
 
-| Boundary | Pattern |
-|---|---|
-| HTTP API | Flask app factory; thin routes; typed app errors mapped to JSON. |
-| UI | Vite React; one API base; local component state until reuse demands extraction. |
-| Model inference | Adapter class with explicit `describe`, `encode_images`, and `encode_texts`. |
-| Vector database | Provider-neutral port with Milvus/Qdrant implementations and shared contract tests. |
-| Artifacts | Immutable manifest + checksum; no silent mutation after benchmark starts. |
-| Secrets | Environment variables or local ignored `.env`; never notebook literals or committed text files. |
+The next changes should keep external behavior stable while making the existing `search/service.py` easier to test and change.
 
-## Guardrails
+1. Extract the Milvus request/response translation into one `search`-local adapter. This is justified now because provider SDK details and ranker configuration are mixed into the workflow.
+2. Extract pure result mapping and temporal-context expression construction into focused modules with fixture-backed tests.
+3. Keep the router and schemas unchanged as the public contract while the workflow is split internally.
+4. Completed: keyframes and maps now live in ignored root `data/`, FastAPI serves them, and Vite proxies them during development. Production builds use `VITE_STATIC_MEDIA_URL` or the configured API origin rather than copying the corpus.
+5. Add an embedding artifact manifest, corpus version, and query/relevance fixtures before evaluating a second vector database. Only then introduce a narrow provider contract and benchmark Milvus against another implementation.
 
-- Do not mix embeddings from different models/checkpoints in one namespace.
-- Do not compare raw similarity scores across models.
-- Do not let provider SDK response shapes leak into retrieval/domain code.
-- Do not benchmark database latency while inference time is included unless the report explicitly names it as end-to-end latency.
-- Do not choose Milvus or Qdrant without approved dataset scale, SLO, hardware profile, relevance labels, and decision weights.
+No generic `VectorStore` port, microservice split, or frontend state library is warranted before those triggers occur.
+
+## Operational guardrails
+
+- A Milvus collection must contain embeddings from one model/checkpoint/preprocessing version and match the query encoder dimension.
+- Preserve the response model while refactoring internals; the frontend currently relies on both snake_case and compatibility camelCase frame fields.
+- Treat external translation as best-effort: an unavailable translator must not make retrieval unavailable.
+- Store future credentials only in environment variables or ignored local `.env` files. Remove the current committed credential defaults before sharing or deploying the repository.
+- Do not copy the keyframe corpus into application build artifacts; serve it through a dedicated static-media boundary.
+- Add a narrow regression test whenever query mapping, temporal narrowing, object enrichment, or submission validation changes.

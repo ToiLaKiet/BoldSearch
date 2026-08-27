@@ -4,9 +4,9 @@ FastAPI backend for frame retrieval over a large image/frame store.
 
 The API is intentionally thin:
 
-- `POST /api/search/query`: text + object-count query. Encodes the text with the cached FG-CLIP model, runs Zilliz/Milvus hybrid search, then enriches, filters, and reranks returned frames with `objects.csv`.
+- `POST /api/search/query`: text and object-hint query. Encodes text with cached FG-CLIP, runs Zilliz/Milvus hybrid search, and enriches returned frames with detection metadata.
 - `POST /api/search/visual_query`: image query. Encodes the provided image with the cached FG-CLIP model, then runs Zilliz/Milvus hybrid search.
-- `POST /api/search/submit`: accepts the selected frame/shot/video identifiers.
+- `POST /api/search/submit/kis`, `/vqa`, and `/trake`: validate local KIS, VQA, and TRAKE submission payloads.
 - `GET /api/health`: lightweight service health check.
 
 ## Runtime Data Flow
@@ -21,14 +21,12 @@ The API is intentionally thin:
 2. Cached FG-CLIP creates dense embeddings for text or image queries.
 3. `search.service` calls `MilvusClient.hybrid_search`.
 4. Milvus/Zilliz returns frame rows in `data`.
-5. Backend looks up object metadata for each returned frame in `objects.csv`.
-6. If object queries exist, backend removes frames that do not contain every queried object label.
-7. Matching frames are reranked by how close their detected object counts are to the requested counts, with Milvus score used as the tie-breaker.
-8. Backend returns frontend-compatible frame results.
+5. Backend looks up detection metadata for each returned frame in `detections.csv`.
+6. The search workflow maps rows and metadata into frontend-compatible frame results.
 
 ## Configuration
 
-Copy `.env.example` to `.env` and fill:
+Provide these values through environment variables or an ignored local `.env` file:
 
 - `ZILLIZ_URI`
 - `ZILLIZ_TOKEN`
@@ -46,6 +44,14 @@ L21_V01,001,car,1,110,123,23,100
 L21_V01,001,dog,2,110,123,23,100
 L21_V01,001,giraffe,3,110,123,23,100
 ```
+
+## Local Data
+
+The ignored repository-root `data/` directory owns local media and generated evaluation artifacts. `AppConfig` exposes `DATA_DIR`, `KEYFRAMES_DIR`, `KEYFRAME_MAP_DIR`, and `EVALUATION_ARTIFACT_DIR`; each can be overridden through the backend environment. FastAPI serves `/keyframes` and `/map-keyframes` from the configured directories, while the Vite development server proxies those paths to FastAPI.
+
+## Query Evaluation
+
+`evaluation/` provides an offline JSONL runner for comparing exported rankings before changing embedding strategy or re-indexing the corpus. It reports evidence-frame `Recall@K`, `MRR`, and `nDCG`; see `evaluation/README.md` for the test-case contract and command. Synthetic KIS/VQA/TRAKE templates live under `evaluation/cases/`. The manual GitHub workflow only reads task, ranking, and metadata files already present below `app/backend` in the checked-out branch.
 
 ## Run
 

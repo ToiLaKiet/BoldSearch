@@ -1,4 +1,4 @@
-# BoldSearch — Submission Guide
+# BoldSearch — Submission Guide (Round 1 · SOTUYEN1)
 
 Guide này dùng cho bộ đề chính thức SOTUYEN1 gồm 25 câu: 20 Textual Known Item
 Search (KIS), 4 Question Answering (Q&A), và 1 Temporal Retrieval and Alignment
