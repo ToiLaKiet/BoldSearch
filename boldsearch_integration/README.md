@@ -67,6 +67,22 @@ collection. `select_search_modalities()` defaults to `visual_embedding` and
 requires an explicit schema field before allowing `caption_embedding`; a
 visual vector is never copied into a caption field.
 
+When the archived BoldSearch clone is kept unchanged, launch it through the
+source-safe overlay. It introspects the collection once, defaults to visual
+only, and supports an explicit `BOLDSEARCH_SEARCH_MODALITIES=visual,caption`
+only when both fields exist:
+
+```bash
+PYTHONPATH=/kaggle/working/boldsearch-integration \
+python -m boldsearch_integration.fastapi_launcher \
+  --app-root /kaggle/working/BoldSearch/app/backend \
+  --host 127.0.0.1 --port 8000
+```
+
+This overlay is needed for a newly indexed V1 collection because the archived
+service otherwise submits a non-existent `caption_embedding` request. It does
+not change files in the clone.
+
 Build the frontend without editing the cloned BoldSearch source. The runtime
 Vite config rewrites the archived absolute API URL in memory and emits the
 production assets into an external directory:
