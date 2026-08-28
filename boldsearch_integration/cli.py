@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 
 from .milvus_ingest import build_milvus_rows, ingest_collection
-from .publisher import publish_manifest
+from .publisher import publish_manifest, rollback_active_release
 from .runner import run_v1_and_publish
 
 
@@ -29,6 +29,12 @@ def build_parser() -> argparse.ArgumentParser:
     publish.add_argument("--output-root", type=Path, required=True)
     publish.add_argument("--thumbnail-width", type=int, default=960)
     publish.add_argument("--webp-quality", type=int, default=82)
+
+    rollback = subparsers.add_parser(
+        "rollback", help="atomically switch active.json to a validated release"
+    )
+    rollback.add_argument("--output-root", type=Path, required=True)
+    rollback.add_argument("--release-id", required=True)
 
     ingest = subparsers.add_parser(
         "ingest", parents=[common],
@@ -102,6 +108,13 @@ def main(argv: list[str] | None = None) -> int:
             "video_ids": report.video_ids,
             "row_count": report.row_count,
             "image_bytes": report.image_bytes,
+        }, ensure_ascii=False))
+        return 0
+    if args.command == "rollback":
+        release = rollback_active_release(args.output_root, args.release_id)
+        print(json.dumps({
+            "release_id": args.release_id,
+            "release_root": str(release),
         }, ensure_ascii=False))
         return 0
 

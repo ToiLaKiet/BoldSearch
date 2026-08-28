@@ -68,6 +68,14 @@ collection. `select_search_modalities()` defaults to `visual_embedding` and
 requires an explicit schema field before allowing `caption_embedding`; a
 visual vector is never copied into a caption field.
 
+To canary or roll back without deleting any release:
+
+```bash
+PYTHONPATH=. python -m boldsearch_integration.cli rollback \
+  --output-root /kaggle/working/boldsearch-public \
+  --release-id 20260828T120000Z-ab12cd34
+```
+
 When the archived BoldSearch clone is kept unchanged, launch it through the
 source-safe overlay. It introspects the collection once, defaults to visual
 only, and supports an explicit `BOLDSEARCH_SEARCH_MODALITIES=visual,caption`

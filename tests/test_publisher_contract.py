@@ -9,6 +9,7 @@ from PIL import Image
 from boldsearch_integration.publisher import (
     load_kept_frames,
     publish_manifest,
+    rollback_active_release,
     resolve_active_release,
 )
 
@@ -152,6 +153,26 @@ def test_invalid_vector_does_not_publish_or_replace_active_release(tmp_path: Pat
         )
 
     assert resolve_active_release(public) == first.release_root
+
+
+def test_active_release_can_be_rolled_back_without_deleting_releases(tmp_path: Path) -> None:
+    data_root = make_pipeline_output(tmp_path / "data")
+    public = tmp_path / "public"
+    first = publish_manifest(
+        data_root=data_root, video_ids=["L21_V001"], output_root=public,
+        expected_vector_dim=4,
+    )
+    second = publish_manifest(
+        data_root=data_root, video_ids=["L21_V001"], output_root=public,
+        expected_vector_dim=4,
+    )
+    assert resolve_active_release(public) == second.release_root
+    assert rollback_active_release(public, first.release_id) == first.release_root
+    assert resolve_active_release(public) == first.release_root
+    assert second.release_root.is_dir()
+
+    with pytest.raises(ValueError, match="release"):
+        rollback_active_release(public, "../private")
 
 
 def test_load_kept_frames_rejects_non_numeric_shot_id(tmp_path: Path) -> None:

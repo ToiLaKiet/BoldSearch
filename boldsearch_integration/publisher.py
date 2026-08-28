@@ -231,6 +231,22 @@ def resolve_active_release(output_root: Path) -> Path:
     return release
 
 
+def rollback_active_release(output_root: Path, release_id: str) -> Path:
+    """Atomically point ``active.json`` at an existing validated release."""
+    if not isinstance(release_id, str) or re.fullmatch(r"[A-Za-z0-9_-]+", release_id) is None:
+        raise ValueError("release id is invalid")
+    output_root = output_root.expanduser().resolve()
+    releases_root = (output_root / "releases").resolve()
+    release = (releases_root / release_id).resolve()
+    if not release.is_relative_to(releases_root) or not (release / "Frames.csv").is_file():
+        raise ValueError(f"release does not exist or is incomplete: {release_id}")
+    _atomic_json(output_root / "active.json", {
+        "schema_version": "1.0",
+        "release_id": release_id,
+    })
+    return release
+
+
 def publish_manifest(
     *,
     data_root: Path,

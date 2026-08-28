@@ -56,7 +56,7 @@ PNG full-resolution.
 
 - [ ] Thu baseline và before/after metrics cho mỗi tối ưu.
 - [ ] Đạt budgets trong `tasks/plan.md` hoặc điều chỉnh theo số đo.
-- [ ] Canary corpus/version, rollback active manifest và runbook.
+- [x] Active manifest rollback; canary runbook vẫn cần số đo thật.
 
 **Acceptance:** performance report, rollback rehearsal, không còn secret trong
 source/history hiện hành.
