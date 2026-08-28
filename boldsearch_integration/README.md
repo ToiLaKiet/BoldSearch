@@ -16,7 +16,8 @@ python -m aic_video_pipeline_v1.cli run --streaming \
 
 For a single resident pipeline process followed by an atomic publish, use the
 integration runner. It accepts direct MP4 paths and keeps the original V1
-artifact tree under `--data-root`:
+artifact tree under `--data-root`. The generated release manifest also pins
+the config checksum and pipeline Git revision:
 
 ```bash
 PYTHONPATH=. python -m boldsearch_integration.cli run \

@@ -9,6 +9,7 @@ import shutil
 import tempfile
 import uuid
 from dataclasses import dataclass
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Iterable
 
@@ -238,10 +239,13 @@ def publish_manifest(
     expected_vector_dim: int = 1024,
     thumbnail_width: int = 960,
     webp_quality: int = 82,
+    pipeline_provenance: Mapping[str, object] | None = None,
 ) -> PublishReport:
     """Atomically publish validated V1 outputs as a new runtime release."""
     if expected_vector_dim <= 0 or thumbnail_width <= 0 or not 1 <= webp_quality <= 100:
         raise ValueError("invalid publisher settings")
+    if pipeline_provenance is not None and not isinstance(pipeline_provenance, Mapping):
+        raise ValueError("pipeline_provenance must be a mapping")
     unique_video_ids = tuple(sorted(set(video_ids)))
     if not unique_video_ids:
         raise ValueError("at least one video_id is required")
@@ -272,7 +276,7 @@ def publish_manifest(
             (staging_root / "keyframes" / frame.video_id / f"{frame.frame_id}.webp").stat().st_size
             for frame in frames
         )
-        _atomic_json(staging_root / "corpus-manifest.json", {
+        manifest = {
             "schema_version": "1.0",
             "release_id": release_id,
             "video_ids": list(unique_video_ids),
@@ -288,7 +292,10 @@ def publish_manifest(
             },
             "thumbnail_width": thumbnail_width,
             "webp_quality": webp_quality,
-        })
+        }
+        if pipeline_provenance is not None:
+            manifest["pipeline"] = dict(pipeline_provenance)
+        _atomic_json(staging_root / "corpus-manifest.json", manifest)
         release_root.parent.mkdir(parents=True, exist_ok=True)
         os.replace(staging_root, release_root)
         _atomic_json(output_root / "active.json", {

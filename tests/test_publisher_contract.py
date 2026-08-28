@@ -109,7 +109,27 @@ def test_publisher_emits_stable_manifest_and_webp_derivatives(tmp_path: Path) ->
     assert image.is_file()
     with Image.open(image) as decoded:
         assert decoded.format == "WEBP"
-        assert decoded.width == 80
+    assert decoded.width == 80
+
+
+def test_publisher_records_pipeline_provenance(tmp_path: Path) -> None:
+    data_root = make_pipeline_output(tmp_path / "data")
+    report = publish_manifest(
+        data_root=data_root,
+        video_ids=["L21_V001"],
+        output_root=tmp_path / "public",
+        expected_vector_dim=4,
+        pipeline_provenance={
+            "pipeline": "aic_video_pipeline_v1",
+            "config_sha256": "sha256:config",
+            "pipeline_revision": "abc123",
+        },
+    )
+    corpus = json.loads(
+        (report.release_root / "corpus-manifest.json").read_text(encoding="utf-8")
+    )
+    assert corpus["pipeline"]["config_sha256"] == "sha256:config"
+    assert corpus["pipeline"]["pipeline_revision"] == "abc123"
 
 
 def test_invalid_vector_does_not_publish_or_replace_active_release(tmp_path: Path) -> None:

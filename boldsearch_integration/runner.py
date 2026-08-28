@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import hashlib
 import re
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any, Iterable
@@ -9,6 +11,27 @@ from .publisher import PublishReport, publish_manifest
 
 
 _VIDEO_ID_RE = re.compile(r"^L\d{2}_V\d{2,3}$")
+
+
+def _pipeline_provenance(pipeline_root: Path, config: Path) -> dict[str, str]:
+    """Return reproducibility metadata without changing the pipeline tree."""
+    config = config.expanduser().resolve()
+    digest = hashlib.sha256(config.read_bytes()).hexdigest()
+    revision = "unknown"
+    try:
+        completed = subprocess.run(
+            ["git", "-C", str(pipeline_root.expanduser().resolve()), "rev-parse", "HEAD"],
+            check=True, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True,
+        )
+        revision = completed.stdout.strip() or "unknown"
+    except (OSError, subprocess.CalledProcessError):
+        pass
+    return {
+        "pipeline": "aic_video_pipeline_v1",
+        "config_name": config.name,
+        "config_sha256": f"sha256:{digest}",
+        "pipeline_revision": revision,
+    }
 
 
 def normalize_video_inputs(video_paths: Iterable[Path]) -> tuple[Path, ...]:
@@ -73,5 +96,6 @@ def run_v1_and_publish(
         expected_vector_dim=expected_vector_dim,
         thumbnail_width=thumbnail_width,
         webp_quality=webp_quality,
+        pipeline_provenance=_pipeline_provenance(pipeline_root, config),
     )
     return results, report
