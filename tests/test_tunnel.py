@@ -1,4 +1,5 @@
 from pathlib import Path
+import pytest
 
 import pytest
 
@@ -27,3 +28,22 @@ def test_tunnel_command_is_loopback_only() -> None:
         "/tmp/cloudflared", "tunnel", "--no-autoupdate", "--protocol", "http2",
         "--url", "http://127.0.0.1:7860",
     )
+
+
+def test_tunnel_timeout_terminates_owned_process(tmp_path: Path) -> None:
+    from boldsearch_integration.tunnel import start_quick_tunnel
+
+    binary = tmp_path / "fake-cloudflared"
+    binary.write_text("#!/usr/bin/env python3\nimport time\ntime.sleep(10)\n", encoding="utf-8")
+    binary.chmod(0o755)
+    with pytest.raises(TimeoutError):
+        start_quick_tunnel(
+            binary,
+            "http://127.0.0.1:7860",
+            log_path=tmp_path / "tunnel.log",
+            pid_path=tmp_path / "tunnel.pid",
+            timeout_seconds=0.1,
+        )
+    pid = int((tmp_path / "tunnel.pid").read_text(encoding="utf-8"))
+    with pytest.raises(ProcessLookupError):
+        __import__("os").kill(pid, 0)

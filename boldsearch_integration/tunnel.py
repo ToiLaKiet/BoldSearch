@@ -58,9 +58,12 @@ def ensure_cloudflared(binary: Path, *, machine: str | None = None) -> Path:
         f"https://github.com/cloudflare/cloudflared/releases/latest/download/{cloudflared_asset(machine)}",
         "--output", str(temporary),
     ], check=True)
-    temporary.chmod(0o755)
-    os.replace(temporary, binary)
-    binary.chmod(0o755)
+    try:
+        temporary.chmod(0o755)
+        os.replace(temporary, binary)
+        binary.chmod(0o755)
+    finally:
+        temporary.unlink(missing_ok=True)
     return binary
 
 
@@ -110,4 +113,10 @@ def start_quick_tunnel(
         if process.poll() is not None:
             raise RuntimeError(f"cloudflared exited with code {process.returncode}: {text[-4000:]}")
         time.sleep(1)
+    process.terminate()
+    try:
+        process.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        process.wait(timeout=5)
     raise TimeoutError(f"cloudflared URL not found in {log_path}")
