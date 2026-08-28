@@ -73,9 +73,10 @@ only, and supports an explicit `BOLDSEARCH_SEARCH_MODALITIES=visual,caption`
 only when both fields exist:
 
 ```bash
+cd /kaggle/working/BoldSearch/app/backend
 PYTHONPATH=/kaggle/working/boldsearch-integration \
-python -m boldsearch_integration.fastapi_launcher \
-  --app-root /kaggle/working/BoldSearch/app/backend \
+uv run python -m boldsearch_integration.fastapi_launcher \
+  --app-root "$PWD" \
   --host 127.0.0.1 --port 8000
 ```
 
