@@ -3,3 +3,13 @@ paper
 *.pickle
 *.pth
 zilliz-cloud-AIC2026-username-password.txt
+.env
+.env.*
+!.env.example
+__pycache__/
+.pytest_cache/
+*.py[cod]
+node_modules/
+dist/
+runtime/
+boldsearch-public/
