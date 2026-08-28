@@ -37,6 +37,8 @@ def build_parser() -> argparse.ArgumentParser:
     ingest.add_argument("--collection", required=True)
     ingest.add_argument("--thumbnail-base", default="/keyframes")
     ingest.add_argument("--batch-size", type=int, default=256)
+    ingest.add_argument("--retries", type=int, default=2)
+    ingest.add_argument("--progress-path", type=Path)
     ingest.add_argument("--uri", default=os.environ.get("ZILLIZ_URI", ""))
     ingest.add_argument("--token", default=os.environ.get("ZILLIZ_TOKEN", ""))
     ingest.add_argument("--dry-run", action="store_true")
@@ -130,6 +132,8 @@ def main(argv: list[str] | None = None) -> int:
         client, args.collection, rows,
         expected_vector_dim=args.expected_vector_dim,
         batch_size=args.batch_size,
+        retries=args.retries,
+        progress_path=args.progress_path,
     )
     print(json.dumps({
         "collection": args.collection,

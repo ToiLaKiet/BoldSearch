@@ -51,8 +51,21 @@ PYTHONPATH=. python -m boldsearch_integration.cli ingest \
 
 Non-dry-run ingestion requires `pymilvus`, `ZILLIZ_URI`, and `ZILLIZ_TOKEN`.
 The adapter writes only `visual_embedding`; it never fabricates a caption
-embedding. The search service must therefore select the visual modality for a
-V1 visual-only collection.
+embedding. It validates the collection schema before the first upsert, retries
+transient batches, and can resume from an atomic progress ledger:
+
+```bash
+PYTHONPATH=. python -m boldsearch_integration.cli ingest \
+  --data-root /kaggle/working/aic_pipeline_data \
+  --video-id L21_V001 --corpus-version l21-v1 \
+  --collection BoldSearchV1 --batch-size 128 --retries 3 \
+  --progress-path /kaggle/working/boldsearch-public/milvus-progress.json
+```
+
+The search service must select the visual modality for a V1 visual-only
+collection. `select_search_modalities()` defaults to `visual_embedding` and
+requires an explicit schema field before allowing `caption_embedding`; a
+visual vector is never copied into a caption field.
 
 Build the frontend without editing the cloned BoldSearch source. The runtime
 Vite config rewrites the archived absolute API URL in memory and emits the

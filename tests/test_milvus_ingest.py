@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 import numpy as np
@@ -125,3 +126,39 @@ def test_ingest_collection_validates_schema_before_mutating() -> None:
     with pytest.raises(ValueError, match="missing fields"):
         ingest_collection(client, "BoldSearch", [{"id": 1}], expected_vector_dim=4)
     assert client.upsert_called is False
+
+
+def test_ingest_retries_transient_batch_and_resumes_from_progress(tmp_path: Path) -> None:
+    class FlakyClient:
+        def __init__(self):
+            self.calls = 0
+            self.rows = []
+
+        def upsert(self, *, collection_name, data):
+            assert collection_name == "BoldSearch"
+            self.calls += 1
+            if self.calls == 1:
+                raise ConnectionError("temporary")
+            self.rows.extend(data)
+            return {"upsert_count": len(data)}
+
+    rows = [
+        {"id": index + 1, "video_id": "L21_V001", "frame_id": index,
+         "shot_id": 1, "visual_embedding": [1.0, 0.0]}
+        for index in range(3)
+    ]
+    progress = tmp_path / "ingest-progress.json"
+    client = FlakyClient()
+    assert ingest_rows(
+        client, "BoldSearch", rows, batch_size=2,
+        retries=1, progress_path=progress,
+    ) == 3
+    assert client.calls == 3
+    assert json.loads(progress.read_text(encoding="utf-8"))["row_ids"] == [1, 2, 3]
+
+    resumed = FlakyClient()
+    assert ingest_rows(
+        resumed, "BoldSearch", rows, batch_size=2,
+        retries=0, progress_path=progress,
+    ) == 0
+    assert resumed.calls == 0

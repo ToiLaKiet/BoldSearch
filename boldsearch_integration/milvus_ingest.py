@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import hashlib
+import json
+import os
 import re
+import tempfile
 from collections.abc import Iterable, Mapping
 from pathlib import Path
 from typing import Any, Protocol
@@ -158,29 +161,83 @@ def ingest_rows(
     rows: Iterable[dict[str, Any]],
     *,
     batch_size: int = 256,
+    retries: int = 2,
+    progress_path: Path | None = None,
 ) -> int:
     """Validate and idempotently upsert rows in bounded batches.
 
     The function deliberately knows only the visual modality. A caller must
     create a schema with the matching fields before invoking it.
     """
-    if not collection_name or batch_size <= 0:
-        raise ValueError("collection_name and positive batch_size are required")
+    if not collection_name or batch_size <= 0 or retries < 0:
+        raise ValueError("collection_name, positive batch_size, and non-negative retries are required")
     materialized = list(rows)
     if not materialized:
         return 0
     _validate_rows(materialized)
+    acknowledged_ids = _load_progress(progress_path, collection_name)
+    pending = [row for row in materialized if row["id"] not in acknowledged_ids]
     total = 0
-    for start in range(0, len(materialized), batch_size):
-        batch = materialized[start:start + batch_size]
-        response = client.upsert(collection_name=collection_name, data=batch)
-        acknowledged = _ack_count(response)
-        if acknowledged is not None and acknowledged != len(batch):
-            raise RuntimeError(
-                f"Milvus acknowledged {acknowledged}/{len(batch)} rows"
-            )
+    for start in range(0, len(pending), batch_size):
+        batch = pending[start:start + batch_size]
+        last_error: Exception | None = None
+        for attempt in range(retries + 1):
+            try:
+                response = client.upsert(collection_name=collection_name, data=batch)
+                acknowledged = _ack_count(response)
+                if acknowledged is not None and acknowledged != len(batch):
+                    raise RuntimeError(
+                        f"Milvus acknowledged {acknowledged}/{len(batch)} rows"
+                    )
+                last_error = None
+                break
+            except Exception as exc:
+                last_error = exc
+                if attempt == retries:
+                    raise RuntimeError(
+                        f"Milvus upsert failed after {retries + 1} attempts"
+                    ) from exc
+        if last_error is not None:
+            raise RuntimeError("Milvus upsert failed") from last_error
+        acknowledged_ids.update(row["id"] for row in batch)
         total += len(batch)
+        _save_progress(progress_path, collection_name, acknowledged_ids)
     return total
+
+
+def _load_progress(path: Path | None, collection_name: str) -> set[int]:
+    if path is None or not path.is_file():
+        return set()
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return set()
+    if value.get("schema_version") != "1.0" or value.get("collection") != collection_name:
+        return set()
+    row_ids = value.get("row_ids")
+    if not isinstance(row_ids, list) or not all(isinstance(item, int) for item in row_ids):
+        return set()
+    return set(row_ids)
+
+
+def _save_progress(path: Path | None, collection_name: str, row_ids: set[int]) -> None:
+    if path is None:
+        return
+    path = path.expanduser().resolve()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile(
+        mode="w", encoding="utf-8", dir=path.parent,
+        prefix=f".{path.name}.", suffix=".tmp", delete=False,
+    ) as handle:
+        temporary = Path(handle.name)
+        json.dump({
+            "schema_version": "1.0",
+            "collection": collection_name,
+            "row_ids": sorted(row_ids),
+        }, handle)
+        handle.write("\n")
+        handle.flush()
+    os.replace(temporary, path)
 
 
 def ingest_collection(
@@ -190,8 +247,13 @@ def ingest_collection(
     *,
     expected_vector_dim: int = 1024,
     batch_size: int = 256,
+    retries: int = 2,
+    progress_path: Path | None = None,
 ) -> int:
     """Validate the remote schema before sending any mutation."""
     description = client.describe_collection(collection_name)
     validate_collection_schema(description, expected_vector_dim=expected_vector_dim)
-    return ingest_rows(client, collection_name, rows, batch_size=batch_size)
+    return ingest_rows(
+        client, collection_name, rows, batch_size=batch_size,
+        retries=retries, progress_path=progress_path,
+    )

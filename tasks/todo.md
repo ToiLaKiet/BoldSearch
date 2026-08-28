@@ -32,14 +32,14 @@
 
 - [x] Chốt projection schema/version và primary key idempotent.
 - [x] Batch upsert visual vectors và validation acknowledgement.
-- [ ] Làm query modality config-driven, không fake caption vector.
+- [x] Thêm query modality contract config-driven, không fake caption vector.
 
 **Acceptance:** query trả hit từ video MP4 mới và hit nào cũng có ảnh 200.
 
 ## Checkpoint — Data path
 
 - [ ] Golden/output tests pass.
-- [x] Schema validation pass; retry ledger còn pending.
+- [x] Schema validation pass; retry ledger có thể resume.
 - [ ] Search-to-image E2E pass local.
 
 ## Phase 4 — UI, gateway và Cloudflare
