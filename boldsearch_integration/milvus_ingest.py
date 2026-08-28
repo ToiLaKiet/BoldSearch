@@ -12,8 +12,49 @@ from .publisher import load_kept_frames
 
 
 class MilvusUpsertClient(Protocol):
+    def describe_collection(self, collection_name: str) -> Mapping[str, Any]:
+        ...
+
     def upsert(self, *, collection_name: str, data: list[dict[str, Any]]) -> Any:
         ...
+
+
+def validate_collection_schema(
+    description: Mapping[str, Any], *, expected_vector_dim: int = 1024
+) -> set[str]:
+    """Fail closed unless a collection can store the V1 visual projection."""
+    if expected_vector_dim <= 0 or not isinstance(description, Mapping):
+        raise ValueError("invalid collection description")
+    fields = description.get("fields")
+    if not isinstance(fields, list):
+        raise ValueError("collection schema has no fields")
+    names: set[str] = set()
+    primary_keys: set[str] = set()
+    visual_dim: int | None = None
+    for field in fields:
+        if not isinstance(field, Mapping):
+            continue
+        name = field.get("name") or field.get("field_name")
+        if not isinstance(name, str) or not name:
+            continue
+        names.add(name)
+        if field.get("is_primary") or field.get("is_primary_key"):
+            primary_keys.add(name)
+        if name == "visual_embedding":
+            params = field.get("params")
+            if isinstance(params, Mapping) and params.get("dim") is not None:
+                visual_dim = int(params["dim"])
+    required = {"id", "video_id", "frame_id", "shot_id", "visual_embedding"}
+    missing = required - names
+    if missing:
+        raise ValueError(f"collection schema missing fields: {sorted(missing)}")
+    if "id" not in primary_keys:
+        raise ValueError("collection schema must mark id as primary key")
+    if visual_dim != expected_vector_dim:
+        raise ValueError(
+            f"visual_embedding dim mismatch: expected {expected_vector_dim}, got {visual_dim}"
+        )
+    return names
 
 
 def stable_primary_key(corpus_version: str, video_id: str, frame_id: int) -> int:
@@ -140,3 +181,17 @@ def ingest_rows(
             )
         total += len(batch)
     return total
+
+
+def ingest_collection(
+    client: MilvusUpsertClient,
+    collection_name: str,
+    rows: Iterable[dict[str, Any]],
+    *,
+    expected_vector_dim: int = 1024,
+    batch_size: int = 256,
+) -> int:
+    """Validate the remote schema before sending any mutation."""
+    description = client.describe_collection(collection_name)
+    validate_collection_schema(description, expected_vector_dim=expected_vector_dim)
+    return ingest_rows(client, collection_name, rows, batch_size=batch_size)

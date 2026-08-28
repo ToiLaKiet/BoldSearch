@@ -5,8 +5,10 @@ import pytest
 
 from boldsearch_integration.milvus_ingest import (
     build_milvus_rows,
+    ingest_collection,
     ingest_rows,
     stable_primary_key,
+    validate_collection_schema,
 )
 from test_publisher_contract import make_pipeline_output
 
@@ -78,3 +80,48 @@ def test_row_projection_rejects_unsafe_thumbnail_base(tmp_path: Path) -> None:
             expected_vector_dim=4,
             thumbnail_base="/keyframes/../private",
         )
+
+
+def test_collection_schema_requires_visual_dim_and_metadata() -> None:
+    schema = {
+        "fields": [
+            {"name": "id", "data_type": "Int64", "is_primary": True},
+            {"name": "video_id", "data_type": "VarChar"},
+            {"name": "frame_id", "data_type": "Int64"},
+            {"name": "shot_id", "data_type": "Int64"},
+            {"name": "visual_embedding", "data_type": "FloatVector",
+             "params": {"dim": 4}},
+        ]
+    }
+    assert validate_collection_schema(schema, expected_vector_dim=4) == {
+        "id", "video_id", "frame_id", "shot_id", "visual_embedding"
+    }
+
+    broken = {"fields": [
+        {"name": "id", "data_type": "Int64", "is_primary": True},
+        {"name": "video_id", "data_type": "VarChar"},
+        {"name": "frame_id", "data_type": "Int64"},
+        {"name": "shot_id", "data_type": "Int64"},
+        {"name": "visual_embedding", "data_type": "FloatVector",
+             "params": {"dim": 3}},
+    ]}
+    with pytest.raises(ValueError, match="dim"):
+        validate_collection_schema(broken, expected_vector_dim=4)
+
+
+def test_ingest_collection_validates_schema_before_mutating() -> None:
+    class FakeClient:
+        def __init__(self):
+            self.upsert_called = False
+
+        def describe_collection(self, _collection_name):
+            return {"fields": [{"name": "id", "is_primary": True}]}
+
+        def upsert(self, **_kwargs):
+            self.upsert_called = True
+            return {"upsert_count": 1}
+
+    client = FakeClient()
+    with pytest.raises(ValueError, match="missing fields"):
+        ingest_collection(client, "BoldSearch", [{"id": 1}], expected_vector_dim=4)
+    assert client.upsert_called is False

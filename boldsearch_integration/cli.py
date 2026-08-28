@@ -5,7 +5,7 @@ import json
 import os
 from pathlib import Path
 
-from .milvus_ingest import build_milvus_rows, ingest_rows
+from .milvus_ingest import build_milvus_rows, ingest_collection
 from .publisher import publish_manifest
 from .runner import run_v1_and_publish
 
@@ -126,7 +126,11 @@ def main(argv: list[str] | None = None) -> int:
     except ImportError as exc:
         raise SystemExit("pymilvus is required for non-dry-run ingest") from exc
     client = MilvusClient(uri=args.uri, token=args.token or None)
-    count = ingest_rows(client, args.collection, rows, batch_size=args.batch_size)
+    count = ingest_collection(
+        client, args.collection, rows,
+        expected_vector_dim=args.expected_vector_dim,
+        batch_size=args.batch_size,
+    )
     print(json.dumps({
         "collection": args.collection,
         "corpus_version": args.corpus_version,
