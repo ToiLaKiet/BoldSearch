@@ -65,6 +65,20 @@ def make_pipeline_output(root: Path, *, dimension: int = 4) -> Path:
         "stage": "FINAL",
         "frames": records,
     }), encoding="utf-8")
+    (metadata / "Shot.json").write_text(json.dumps({
+        "schema_version": "2.0",
+        "video_id": video_id,
+        "source_video_path": "L21_V001.mp4",
+        "source_video_checksum": "sha256:test-fixture",
+        "fps": 25.0,
+        "total_frames": 30,
+        "width": 120,
+        "height": 60,
+        "codec": "fixture",
+        "duration_ms": 1200,
+        "detector": "fixture",
+        "shots": [],
+    }), encoding="utf-8")
     return root
 
 
@@ -82,6 +96,9 @@ def test_publisher_emits_stable_manifest_and_webp_derivatives(tmp_path: Path) ->
     assert report.row_count == 2
     release = resolve_active_release(tmp_path / "public")
     assert release == report.release_root
+    corpus = json.loads((release / "corpus-manifest.json").read_text(encoding="utf-8"))
+    assert corpus["videos"]["L21_V001"]["source_video_checksum"] == "sha256:test-fixture"
+    assert corpus["videos"]["L21_V001"]["frame_ids"] == [0, 20]
     with (release / "Frames.csv").open(newline="", encoding="utf-8") as handle:
         rows = list(csv.DictReader(handle))
     assert rows == [

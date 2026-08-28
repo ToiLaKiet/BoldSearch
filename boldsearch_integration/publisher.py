@@ -134,6 +134,40 @@ def load_kept_frames(
     return sorted(result, key=lambda item: item.frame_id)
 
 
+def _load_shot_provenance(data_root: Path, video_id: str) -> dict[str, object]:
+    path = data_root / "metadata" / video_id / "Shot.json"
+    if not path.is_file():
+        raise ValueError(f"missing Shot.json: {path}")
+    try:
+        document = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ValueError(f"invalid Shot.json: {path}") from exc
+    required = {
+        "schema_version", "video_id", "source_video_path",
+        "source_video_checksum", "fps", "total_frames",
+        "width", "height", "codec", "duration_ms", "detector",
+    }
+    if document.get("schema_version") != "2.0" or document.get("video_id") != video_id:
+        raise ValueError(f"invalid Shot.json identity: {path}")
+    missing = sorted(key for key in required if key not in document)
+    if missing:
+        raise ValueError(f"Shot.json missing fields for {video_id}: {missing}")
+    checksum = str(document["source_video_checksum"])
+    if not checksum.startswith("sha256:"):
+        raise ValueError(f"invalid source checksum for {video_id}")
+    return {
+        "source_video_name": Path(str(document["source_video_path"])).name,
+        "source_video_checksum": checksum,
+        "fps": float(document["fps"]),
+        "total_frames": int(document["total_frames"]),
+        "width": int(document["width"]),
+        "height": int(document["height"]),
+        "codec": str(document["codec"]),
+        "duration_ms": int(document["duration_ms"]),
+        "detector": str(document["detector"]),
+    }
+
+
 def _atomic_json(path: Path, value: object) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.NamedTemporaryFile(
@@ -212,7 +246,9 @@ def publish_manifest(
     if not unique_video_ids:
         raise ValueError("at least one video_id is required")
     frames: list[KeptFrame] = []
+    provenance: dict[str, dict[str, object]] = {}
     for video_id in unique_video_ids:
+        provenance[video_id] = _load_shot_provenance(data_root.expanduser().resolve(), video_id)
         frames.extend(load_kept_frames(
             data_root, video_id, expected_vector_dim=expected_vector_dim,
         ))
@@ -241,6 +277,15 @@ def publish_manifest(
             "release_id": release_id,
             "video_ids": list(unique_video_ids),
             "row_count": len(frames),
+            "videos": {
+                video_id: {
+                    **metadata,
+                    "frame_ids": [
+                        frame.frame_id for frame in frames if frame.video_id == video_id
+                    ],
+                }
+                for video_id, metadata in provenance.items()
+            },
             "thumbnail_width": thumbnail_width,
             "webp_quality": webp_quality,
         })
