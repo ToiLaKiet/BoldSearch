@@ -256,12 +256,15 @@ def publish_manifest(
     thumbnail_width: int = 960,
     webp_quality: int = 82,
     pipeline_provenance: Mapping[str, object] | None = None,
+    corpus_version: str | None = None,
 ) -> PublishReport:
     """Atomically publish validated V1 outputs as a new runtime release."""
     if expected_vector_dim <= 0 or thumbnail_width <= 0 or not 1 <= webp_quality <= 100:
         raise ValueError("invalid publisher settings")
     if pipeline_provenance is not None and not isinstance(pipeline_provenance, Mapping):
         raise ValueError("pipeline_provenance must be a mapping")
+    if corpus_version is not None and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}", corpus_version) is None:
+        raise ValueError("corpus_version is invalid")
     unique_video_ids = tuple(sorted(set(video_ids)))
     if not unique_video_ids:
         raise ValueError("at least one video_id is required")
@@ -311,6 +314,8 @@ def publish_manifest(
         }
         if pipeline_provenance is not None:
             manifest["pipeline"] = dict(pipeline_provenance)
+        if corpus_version is not None:
+            manifest["corpus_version"] = corpus_version
         _atomic_json(staging_root / "corpus-manifest.json", manifest)
         release_root.parent.mkdir(parents=True, exist_ok=True)
         os.replace(staging_root, release_root)

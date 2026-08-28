@@ -113,6 +113,7 @@ def main(argv: list[str] | None = None) -> int:
             expected_vector_dim=args.expected_vector_dim,
             thumbnail_width=args.thumbnail_width,
             webp_quality=args.webp_quality,
+            corpus_version=args.corpus_version,
         )
         print(json.dumps({
             "release_id": report.release_id,

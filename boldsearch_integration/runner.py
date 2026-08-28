@@ -97,5 +97,6 @@ def run_v1_and_publish(
         thumbnail_width=thumbnail_width,
         webp_quality=webp_quality,
         pipeline_provenance=_pipeline_provenance(pipeline_root, config),
+        corpus_version=corpus_version,
     )
     return results, report

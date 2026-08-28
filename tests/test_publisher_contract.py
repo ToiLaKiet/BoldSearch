@@ -125,12 +125,14 @@ def test_publisher_records_pipeline_provenance(tmp_path: Path) -> None:
             "config_sha256": "sha256:config",
             "pipeline_revision": "abc123",
         },
+        corpus_version="l21-v1",
     )
     corpus = json.loads(
         (report.release_root / "corpus-manifest.json").read_text(encoding="utf-8")
     )
     assert corpus["pipeline"]["config_sha256"] == "sha256:config"
     assert corpus["pipeline"]["pipeline_revision"] == "abc123"
+    assert corpus["corpus_version"] == "l21-v1"
 
 
 def test_invalid_vector_does_not_publish_or_replace_active_release(tmp_path: Path) -> None:
