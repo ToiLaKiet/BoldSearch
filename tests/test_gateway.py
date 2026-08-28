@@ -12,6 +12,7 @@ from boldsearch_integration.gateway import (
     resolve_frame_request,
     resolve_static_path,
 )
+from boldsearch_integration.video_frames import VideoFrameProvider
 
 
 def test_frame_request_maps_png_compatibility_url_to_webp(tmp_path: Path) -> None:
@@ -34,6 +35,44 @@ def test_frame_request_rejects_traversal_and_unknown_video_shape(tmp_path: Path)
         resolve_frame_request(release, "/keyframes/../../secret.png")
     with pytest.raises(FileNotFoundError):
         resolve_frame_request(release, "/keyframes/L21_V001/not-a-frame.png")
+
+
+def test_frame_request_can_generate_a_cached_frame_from_mp4(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    video = tmp_path / "L21_V001.mp4"
+    video.write_bytes(b"not a real mp4; ffmpeg is mocked")
+    cache = tmp_path / "cache"
+    calls: list[list[str]] = []
+
+    def fake_run(command, **_kwargs):
+        calls.append(command)
+        if command[0] == "ffprobe":
+            return type("Result", (), {"returncode": 0, "stdout": "30/1\n", "stderr": ""})()
+        Path(command[-1]).write_bytes(b"RIFFxxxxWEBP")
+        return type("Result", (), {"returncode": 0, "stdout": "", "stderr": ""})()
+
+    monkeypatch.setattr("boldsearch_integration.video_frames.subprocess.run", fake_run)
+    provider = VideoFrameProvider(
+        {"L21_V001": video}, cache_root=cache, max_width=960, webp_quality=82,
+    )
+
+    image, content_type = resolve_frame_request(
+        tmp_path / "release", "/keyframes/L21_V001/30.webp", frame_provider=provider,
+    )
+
+    assert image == cache / "keyframes/L21_V001/30.webp"
+    assert image.read_bytes() == b"RIFFxxxxWEBP"
+    assert content_type == "image/webp"
+    assert [command[0] for command in calls] == ["ffprobe", "ffmpeg"]
+    assert "1.000000" in calls[-1]
+
+    # The cached image must prevent another decode when the grid re-renders.
+    resolved_again, _ = resolve_frame_request(
+        tmp_path / "release", "/keyframes/L21_V001/30.png", frame_provider=provider,
+    )
+    assert resolved_again == image
+    assert len(calls) == 2
 
 
 def test_static_path_stays_under_frontend_dist(tmp_path: Path) -> None:

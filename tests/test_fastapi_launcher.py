@@ -6,6 +6,7 @@ import pytest
 from boldsearch_integration.fastapi_launcher import (
     _output_fields,
     _schema_fields,
+    patch_local_fg_clip_loader,
     patch_visual_search,
 )
 
@@ -70,3 +71,11 @@ def test_overlay_sends_visual_request_only(monkeypatch) -> None:
     monkeypatch.setenv("BOLDSEARCH_SEARCH_MODALITIES", "visual,caption")
     with pytest.raises(ValueError, match="caption_embedding"):
         service._hybrid_search(config, Client(), None, [0.1, 0.2], 5)
+
+
+def test_local_fg_clip_patch_rejects_model_without_weights(tmp_path) -> None:
+    (tmp_path / "config.json").write_text("{}", encoding="utf-8")
+    (tmp_path / "preprocessor_config.json").write_text("{}", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="model weights"):
+        patch_local_fg_clip_loader(tmp_path)

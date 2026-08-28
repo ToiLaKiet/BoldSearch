@@ -10,6 +10,7 @@ from urllib.parse import unquote, urlsplit
 from urllib.request import Request, urlopen
 
 from .publisher import resolve_active_release
+from .video_frames import FrameExtractionError, VideoFrameProvider
 
 
 _FRAME_RE = re.compile(r"^/keyframes/(L\d{2}_V\d{2,3})/(\d+)\.(?:png|webp)$")
@@ -19,8 +20,13 @@ _HOP_HEADERS = {
 }
 
 
-def resolve_frame_request(release_root: Path, request_path: str) -> tuple[Path, str]:
-    """Resolve a frontend PNG/WebP URL to the immutable WebP release asset."""
+def resolve_frame_request(
+    release_root: Path,
+    request_path: str,
+    *,
+    frame_provider: VideoFrameProvider | None = None,
+) -> tuple[Path, str]:
+    """Resolve a frontend URL to a release asset or on-demand MP4 frame cache."""
     path = unquote(urlsplit(request_path).path)
     match = _FRAME_RE.fullmatch(path)
     if match is None:
@@ -28,8 +34,12 @@ def resolve_frame_request(release_root: Path, request_path: str) -> tuple[Path, 
     video_id, frame_id = match.groups()
     candidate = (release_root / "keyframes" / video_id / f"{frame_id}.webp").resolve()
     keyframe_root = (release_root / "keyframes").resolve()
-    if not candidate.is_relative_to(keyframe_root) or not candidate.is_file():
+    if not candidate.is_relative_to(keyframe_root):
         raise FileNotFoundError(f"keyframe not found: {candidate}")
+    if not candidate.is_file():
+        if frame_provider is None:
+            raise FileNotFoundError(f"keyframe not found: {candidate}")
+        candidate = frame_provider.resolve(video_id, int(frame_id))
     return candidate, "image/webp"
 
 
@@ -53,7 +63,13 @@ class _GatewayServer(ThreadingHTTPServer):
     allow_reuse_address = True
 
 
-def make_handler(*, public_root: Path, frontend_dist: Path, backend_url: str):
+def make_handler(
+    *,
+    public_root: Path,
+    frontend_dist: Path,
+    backend_url: str,
+    frame_provider: VideoFrameProvider | None = None,
+):
     public_root = public_root.expanduser().resolve()
     frontend_dist = frontend_dist.expanduser().resolve()
     backend_url = backend_url.rstrip("/")
@@ -107,6 +123,9 @@ def make_handler(*, public_root: Path, frontend_dist: Path, backend_url: str):
                     image, content_type = resolve_frame_request(release, path)
                 except FileNotFoundError:
                     self.send_error(404, "image not found")
+                    return
+                except FrameExtractionError as exc:
+                    self.send_error(502, f"could not extract image: {exc}")
                     return
                 self._serve_file(image, content_type, "public, max-age=31536000, immutable", head)
                 return
@@ -198,22 +217,41 @@ def make_handler(*, public_root: Path, frontend_dist: Path, backend_url: str):
     return GatewayHandler
 
 
-def serve(*, public_root: Path, frontend_dist: Path, backend_url: str, host: str, port: int) -> None:
+def serve(
+    *,
+    public_root: Path,
+    frontend_dist: Path,
+    backend_url: str,
+    host: str,
+    port: int,
+    frame_provider: VideoFrameProvider | None = None,
+) -> None:
     handler = make_handler(
         public_root=public_root,
         frontend_dist=frontend_dist,
         backend_url=backend_url,
+        frame_provider=frame_provider,
     )
     _GatewayServer((host, port), handler).serve_forever()
 
 
 def main() -> int:
+    manifest_value = os.environ.get("BOLDSEARCH_VIDEO_MANIFEST", "").strip()
+    frame_provider = None
+    if manifest_value:
+        frame_provider = VideoFrameProvider.from_json_file(
+            Path(manifest_value),
+            cache_root=Path(os.environ["BOLDSEARCH_FRAME_CACHE_ROOT"]),
+            max_width=int(os.environ.get("BOLDSEARCH_FRAME_MAX_WIDTH", "960")),
+            webp_quality=int(os.environ.get("BOLDSEARCH_FRAME_WEBP_QUALITY", "82")),
+        )
     serve(
         public_root=Path(os.environ["BOLDSEARCH_PUBLIC_ROOT"]),
         frontend_dist=Path(os.environ["BOLDSEARCH_FRONTEND_DIST"]),
         backend_url=os.environ.get("BOLDSEARCH_BACKEND", "http://127.0.0.1:8000"),
         host=os.environ.get("BOLDSEARCH_GATEWAY_HOST", "127.0.0.1"),
         port=int(os.environ.get("BOLDSEARCH_GATEWAY_PORT", "7860")),
+        frame_provider=frame_provider,
     )
     return 0
 

@@ -8,6 +8,12 @@ For Kaggle, use [the Run All notebook](../notebooks/kaggle_mp4_run_all.ipynb).
 It clones the app and this runtime branch separately, bootstraps a visual-only
 collection, and starts the backend, gateway, and Quick Tunnel after ingestion.
 
+If Zilliz already contains the corpus, use the
+[query-only notebook](../notebooks/kaggle_query_existing_index.ipynb) instead.
+It never runs the pipeline or ingestion. The gateway decodes and caches only
+the MP4 frames returned by searches, so attaching a large video corpus does not
+start a large batch job.
+
 Run the existing pipeline directly on an MP4 first:
 
 ```bash

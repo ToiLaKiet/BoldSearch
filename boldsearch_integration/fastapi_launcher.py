@@ -123,6 +123,49 @@ def patch_visual_search(service_module: Any) -> None:
     service_module._hybrid_search = visual_safe_hybrid_search
 
 
+def patch_local_fg_clip_loader(model_path: Path) -> None:
+    """Make the unchanged archived backend load FG-CLIP from a local directory.
+
+    The archived encoder hard-codes a Hugging Face repository ID.  Replacing
+    its loader before ``main`` is imported keeps the application source
+    untouched while allowing Kaggle datasets with a complete model snapshot.
+    """
+    root = model_path.expanduser().resolve()
+    if not root.is_dir():
+        raise ValueError(f"FG-CLIP local model directory does not exist: {root}")
+    required = [root / "config.json", root / "preprocessor_config.json"]
+    missing = [str(path.name) for path in required if not path.is_file()]
+    if not any(root.glob("*.safetensors")) and not any(root.glob("*.bin")):
+        missing.append("model weights (*.safetensors or *.bin)")
+    if missing:
+        raise ValueError(
+            f"FG-CLIP local model is incomplete at {root}; missing: {', '.join(missing)}"
+        )
+
+    from functools import lru_cache
+    from encoders import fg_clip
+    from encoders import loader
+
+    @lru_cache(maxsize=1)
+    def load_local_encoder(device: str | None = None, hf_token: str | None = None):
+        del hf_token
+        import torch
+        from transformers import AutoImageProcessor, AutoModelForCausalLM, AutoTokenizer
+
+        encoder = fg_clip.FGClipEncoder.__new__(fg_clip.FGClipEncoder)
+        encoder.device = torch.device(device or fg_clip._default_device())
+        load_kwargs = {"trust_remote_code": True, "local_files_only": True}
+        encoder._model = AutoModelForCausalLM.from_pretrained(str(root), **load_kwargs).to(encoder.device)
+        encoder._model.eval()
+        encoder._tokenizer = AutoTokenizer.from_pretrained(str(root), **load_kwargs)
+        encoder._image_processor = AutoImageProcessor.from_pretrained(str(root), **load_kwargs)
+        encoder.embedding_dim = encoder._infer_embedding_dim()
+        print(f"Loaded FG-CLIP from local Kaggle dataset: {root}")
+        return encoder
+
+    loader.load_fg_clip_encoder = load_local_encoder
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--app-root", type=Path, required=True)
@@ -134,6 +177,9 @@ def main(argv: list[str] | None = None) -> int:
         raise SystemExit(f"--app-root is not a directory: {root}")
     sys.path.insert(0, str(root))
     try:
+        local_model = os.environ.get("BOLDSEARCH_FGCLIP_MODEL_PATH", "").strip()
+        if local_model:
+            patch_local_fg_clip_loader(Path(local_model))
         import main as archived_main
         from search import service
         import uvicorn
