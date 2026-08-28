@@ -10,6 +10,9 @@ def test_kaggle_query_only_notebook_does_not_build_or_ingest_a_corpus() -> None:
     assert document["nbformat"] == 4
     assert "BOLDSEARCH_VIDEO_MANIFEST" in source
     assert "BOLDSEARCH_FRAME_CACHE_ROOT" in source
+    assert "ENV_INPUT_FILENAME = 'a.env'" in source
+    assert "load_a_env" in source
+    assert "kaggle_secrets" not in source
     assert "boldsearch_integration.video_frames" in source
     assert "boldsearch_integration.fastapi_launcher" in source
     assert "boldsearch_integration.gateway" in source
