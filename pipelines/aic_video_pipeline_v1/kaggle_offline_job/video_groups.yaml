@@ -1,0 +1,25 @@
+schema_version: "1.0"
+
+# Runner tìm model và video hoàn toàn dưới Kaggle Input, không dùng Internet.
+input_root: /kaggle/input
+model_root: auto
+
+# Mọi file tạm/checkpoint nằm trong Kaggle Working.
+work_root: /kaggle/working/aic_video_pipeline_job
+
+# Kết quả được tách theo group_id:
+#   <result_root>/Videos_L21_a/L21_V001.tar
+result_root: /kaggle/working/aic_pipeline_results
+
+# Có thể thêm thư mục output của session trước đã gắn lại làm Kaggle Input.
+# Runner kiểm tra TAR thật trước khi skip; state đơn lẻ không được tin cậy.
+previous_result_roots: []
+
+video_groups:
+  # Mỗi dòng là một thư mục cần chạy toàn bộ video đúng level bên trong.
+  - Videos_L21_a
+  - Videos_L23_a
+
+  # Nếu auto-discovery tìm thấy nhiều thư mục trùng tên, chỉ rõ đường dẫn:
+  # - group_id: Videos_L24_a
+  #   video_root: /kaggle/input/<dataset>/Videos_L24_a/video

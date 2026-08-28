@@ -1,0 +1,62 @@
+# MP4-first BoldSearch — checklist triển khai
+
+> Đây là task list sau khi chốt các câu hỏi trong `tasks/plan.md`. Bước lập
+> kế hoạch này chưa triển khai mã nguồn.
+
+## Phase 0 — Contract và baseline
+
+- [ ] Pin commit/revision/config vào corpus manifest.
+- [ ] Chạy golden video và lưu frame IDs, schema, vector invariants, ảnh mẫu,
+  latency/byte baseline.
+- [ ] Chốt `legacy-compatible` hoặc `new-corpus-v1` cho release đầu.
+
+**Acceptance:** rerun cùng input/config có cùng contract; sai khác fail rõ.
+
+## Phase 1 — MP4 discovery và packaging
+
+- [ ] Pin source `aic_video_pipeline_v1` trong BoldSearch clone.
+- [ ] Thêm profile L21/L23 và dry-run path validation.
+- [ ] Kiểm tra resume và không duplicate video ID.
+
+**Acceptance:** chỉ MP4 hợp lệ trực tiếp trong `Videos_Lxx_*/video` được chạy.
+
+## Phase 2 — Publisher artifact
+
+- [ ] Validate `Frame.json`, PNG, NPY trước publish.
+- [ ] Tạo Frames.csv và thumbnail WebP versioned.
+- [ ] Đảm bảo atomic active-manifest và recovery sau lỗi.
+
+**Acceptance:** row/ảnh/vector counts khớp; không có release partial.
+
+## Phase 3 — Milvus và backend search
+
+- [ ] Chốt schema/version collection và primary key idempotent.
+- [ ] Batch upsert visual vectors, metadata và progress ledger.
+- [ ] Làm query modality config-driven, không fake caption vector.
+
+**Acceptance:** query trả hit từ video MP4 mới và hit nào cũng có ảnh 200.
+
+## Checkpoint — Data path
+
+- [ ] Golden/output tests pass.
+- [ ] Schema validation và ingestion retry pass.
+- [ ] Search-to-image E2E pass local.
+
+## Phase 4 — UI, gateway và Cloudflare
+
+- [ ] Same-origin `/api`, `/Frames.csv`, `/keyframes`.
+- [ ] WebP thumbnails + lazy/async decoding + virtualized/paginated UI.
+- [ ] One gateway, health gates, tunnel smoke tests.
+- [ ] Restrict CORS, rotate secrets, add public request limits.
+
+**Acceptance:** public URL hiển thị UI, search và ảnh đúng; không tải hàng loạt
+PNG full-resolution.
+
+## Phase 5 — Performance/rollout
+
+- [ ] Thu baseline và before/after metrics cho mỗi tối ưu.
+- [ ] Đạt budgets trong `tasks/plan.md` hoặc điều chỉnh theo số đo.
+- [ ] Canary corpus/version, rollback active manifest và runbook.
+
+**Acceptance:** performance report, rollback rehearsal, không còn secret trong
+source/history hiện hành.

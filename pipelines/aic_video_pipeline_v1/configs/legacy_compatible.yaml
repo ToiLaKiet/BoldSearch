@@ -1,0 +1,22 @@
+# Compatibility profile for a BoldSearch collection whose Frames.csv was built
+# with the legacy representative threshold. Keep this separate from default.yaml
+# so a new corpus can deliberately choose a different threshold and version.
+indexer:
+  sample_every_frames: 10
+autoshot:
+  root: /home/long/Documents/AIC/AutoShot
+  checkpoint: /home/long/Documents/AIC/AutoShot/ckpt_0_200_0.pth
+  threshold: 0.296
+  allow_fallback: false
+embedding:
+  provider: fgclip2
+  model_id: qihoo360/fg-clip2-large
+  revision: 4d1d5dc35c716902f07c172dbfc23b82a7bc6bf3
+  model_version: fgclip2_large_v1
+  model_path: ../../../models/fgclip2
+  batch_size: 4
+  checkpoint_every_frames: 100
+similarity:
+  threshold: 0.5
+paths:
+  data_root: ../data
