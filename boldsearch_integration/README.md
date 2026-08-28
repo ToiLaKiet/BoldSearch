@@ -53,3 +53,19 @@ Non-dry-run ingestion requires `pymilvus`, `ZILLIZ_URI`, and `ZILLIZ_TOKEN`.
 The adapter writes only `visual_embedding`; it never fabricates a caption
 embedding. The search service must therefore select the visual modality for a
 V1 visual-only collection.
+
+Build the frontend without editing the cloned BoldSearch source. The runtime
+Vite config rewrites the archived absolute API URL in memory and emits the
+production assets into an external directory:
+
+```bash
+export BOLDSEARCH_FRONTEND_ROOT=/kaggle/working/BoldSearch/app/frontend
+export BOLDSEARCH_FRONTEND_DIST=/kaggle/working/boldsearch-public/frontend-dist
+export VITE_RUNTIME_CONFIG=/kaggle/working/boldsearch-integration/boldsearch_integration/vite.runtime.mjs
+npm --prefix "$BOLDSEARCH_FRONTEND_ROOT" ci --ignore-scripts
+npm --prefix "$BOLDSEARCH_FRONTEND_ROOT" exec -- vite build \
+  --config "$VITE_RUNTIME_CONFIG"
+```
+
+Serve that directory and the active publisher release through
+`boldsearch_integration.gateway`; expose only the gateway port to cloudflared.
