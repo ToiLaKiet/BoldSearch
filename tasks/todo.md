@@ -1,7 +1,7 @@
 # MP4-first BoldSearch — checklist triển khai
 
-> Đây là task list sau khi chốt các câu hỏi trong `tasks/plan.md`. Bước lập
-> kế hoạch này chưa triển khai mã nguồn.
+> Đây là task list sau khi chốt các câu hỏi trong `tasks/plan.md`; các mục đánh
+> dấu phản ánh những slice implementation đã hoàn tất.
 
 ## Phase 0 — Contract và baseline
 
@@ -16,7 +16,7 @@
 
 - [ ] Pin source `aic_video_pipeline_v1` trong BoldSearch clone.
 - [x] Thêm profile L21/L23 và dry-run path validation.
-- [ ] Kiểm tra resume và không duplicate video ID.
+- [x] Kiểm tra resume và không duplicate video ID.
 
 **Acceptance:** chỉ MP4 hợp lệ trực tiếp trong `Videos_Lxx_*/video` được chạy.
 
@@ -39,7 +39,7 @@
 ## Checkpoint — Data path
 
 - [ ] Golden/output tests pass.
-- [ ] Schema validation và ingestion retry pass.
+- [x] Schema validation pass; retry ledger còn pending.
 - [ ] Search-to-image E2E pass local.
 
 ## Phase 4 — UI, gateway và Cloudflare
