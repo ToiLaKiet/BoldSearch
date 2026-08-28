@@ -4,6 +4,10 @@ This package is intentionally outside the BoldSearch application source. It
 turns validated `aic_video_pipeline_v1` output into a versioned static release
 and visual Milvus rows.
 
+For Kaggle, use [the Run All notebook](../notebooks/kaggle_mp4_run_all.ipynb).
+It clones the app and this runtime branch separately, bootstraps a visual-only
+collection, and starts the backend, gateway, and Quick Tunnel after ingestion.
+
 Run the existing pipeline directly on an MP4 first:
 
 ```bash
