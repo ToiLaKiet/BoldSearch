@@ -318,7 +318,12 @@ export default function App() {
                     className={selectedShot?.id === shot.id ? 'shot-card active' : 'shot-card'}
                     onClick={() => setSelectedShot(shot)}
                   >
-                    <img src={shot.thumbnail} alt={shot.title} />
+                    <img
+                      loading="lazy"
+                      decoding="async"
+                      src={shot.thumbnail}
+                      alt={shot.title}
+                    />
                     <div className="shot-meta">
                       <span>{shot.videoId}</span>
                       <strong>{shot.title}</strong>
@@ -336,7 +341,12 @@ export default function App() {
           {selectedShot ? (
             <>
               <div className="detail-preview">
-                <img src={selectedShot.thumbnail} alt={selectedShot.title} />
+                <img
+                  loading="lazy"
+                  decoding="async"
+                  src={selectedShot.thumbnail}
+                  alt={selectedShot.title}
+                />
                 <div className="play-overlay">Preview</div>
               </div>
               <div className="detail-body">

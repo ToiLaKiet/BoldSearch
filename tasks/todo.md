@@ -8,30 +8,30 @@
 - [ ] Pin commit/revision/config vào corpus manifest.
 - [ ] Chạy golden video và lưu frame IDs, schema, vector invariants, ảnh mẫu,
   latency/byte baseline.
-- [ ] Chốt `legacy-compatible` hoặc `new-corpus-v1` cho release đầu.
+- [x] Chốt profile `legacy-compatible` riêng, không đổi default profile.
 
 **Acceptance:** rerun cùng input/config có cùng contract; sai khác fail rõ.
 
 ## Phase 1 — MP4 discovery và packaging
 
 - [ ] Pin source `aic_video_pipeline_v1` trong BoldSearch clone.
-- [ ] Thêm profile L21/L23 và dry-run path validation.
+- [x] Thêm profile L21/L23 và dry-run path validation.
 - [ ] Kiểm tra resume và không duplicate video ID.
 
 **Acceptance:** chỉ MP4 hợp lệ trực tiếp trong `Videos_Lxx_*/video` được chạy.
 
 ## Phase 2 — Publisher artifact
 
-- [ ] Validate `Frame.json`, PNG, NPY trước publish.
-- [ ] Tạo Frames.csv và thumbnail WebP versioned.
-- [ ] Đảm bảo atomic active-manifest và recovery sau lỗi.
+- [x] Validate `Frame.json`, PNG, NPY trước publish.
+- [x] Tạo Frames.csv và thumbnail WebP versioned.
+- [x] Đảm bảo atomic active-manifest và recovery sau lỗi.
 
 **Acceptance:** row/ảnh/vector counts khớp; không có release partial.
 
 ## Phase 3 — Milvus và backend search
 
-- [ ] Chốt schema/version collection và primary key idempotent.
-- [ ] Batch upsert visual vectors, metadata và progress ledger.
+- [x] Chốt projection schema/version và primary key idempotent.
+- [x] Batch upsert visual vectors và validation acknowledgement.
 - [ ] Làm query modality config-driven, không fake caption vector.
 
 **Acceptance:** query trả hit từ video MP4 mới và hit nào cũng có ảnh 200.
@@ -44,9 +44,9 @@
 
 ## Phase 4 — UI, gateway và Cloudflare
 
-- [ ] Same-origin `/api`, `/Frames.csv`, `/keyframes`.
-- [ ] WebP thumbnails + lazy/async decoding + virtualized/paginated UI.
-- [ ] One gateway, health gates, tunnel smoke tests.
+- [x] Same-origin gateway `/api`, `/Frames.csv`, `/keyframes`.
+- [x] WebP thumbnails + lazy/async decoding cho grid/detail.
+- [ ] One gateway health lifecycle và tunnel smoke tests trên Kaggle.
 - [ ] Restrict CORS, rotate secrets, add public request limits.
 
 **Acceptance:** public URL hiển thị UI, search và ảnh đúng; không tải hàng loạt
