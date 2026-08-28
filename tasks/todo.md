@@ -30,7 +30,7 @@
 
 ## Phase 3 — Milvus và backend search
 
-- [x] Chốt projection schema/version và primary key idempotent.
+- [x] Chốt/tự bootstrap projection schema versioned và primary key idempotent.
 - [x] Batch upsert visual vectors và validation acknowledgement.
 - [x] Thêm query modality contract config-driven, không fake caption vector.
 

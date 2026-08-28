@@ -2,6 +2,7 @@
 
 from .milvus_ingest import (
     build_milvus_rows,
+    ensure_visual_collection,
     ingest_collection,
     ingest_rows,
     stable_primary_key,
@@ -17,7 +18,8 @@ from .search_modality import SearchModality, request_kwargs, select_search_modal
 from .tunnel import cloudflared_asset, ensure_cloudflared, start_quick_tunnel
 
 __all__ = [
-    "PublishReport", "build_milvus_rows", "ingest_collection", "ingest_rows",
+    "PublishReport", "build_milvus_rows", "ensure_visual_collection",
+    "ingest_collection", "ingest_rows",
     "load_kept_frames", "publish_manifest", "rollback_active_release",
     "stable_primary_key",
     "validate_collection_schema", "cloudflared_asset", "ensure_cloudflared",

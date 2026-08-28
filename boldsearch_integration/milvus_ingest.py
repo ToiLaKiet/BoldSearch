@@ -60,6 +60,55 @@ def validate_collection_schema(
     return names
 
 
+def ensure_visual_collection(
+    client: Any,
+    collection_name: str,
+    *,
+    expected_vector_dim: int = 1024,
+) -> bool:
+    """Create the V1 visual-only collection when absent, otherwise validate it.
+
+    Returns ``True`` only when this invocation created the collection. Existing
+    collections are never changed or dropped.
+    """
+    if not collection_name or expected_vector_dim <= 0:
+        raise ValueError("collection_name and positive expected_vector_dim are required")
+    if client.has_collection(collection_name):
+        validate_collection_schema(
+            client.describe_collection(collection_name),
+            expected_vector_dim=expected_vector_dim,
+        )
+        return False
+    try:
+        from pymilvus import DataType, MilvusClient
+    except ImportError as exc:
+        raise RuntimeError("pymilvus is required to create a Milvus collection") from exc
+
+    schema = MilvusClient.create_schema(auto_id=False, enable_dynamic_field=False)
+    schema.add_field(field_name="id", datatype=DataType.INT64, is_primary=True)
+    schema.add_field(field_name="video_id", datatype=DataType.VARCHAR, max_length=32)
+    schema.add_field(field_name="frame_id", datatype=DataType.INT64)
+    schema.add_field(field_name="shot_id", datatype=DataType.INT64)
+    schema.add_field(
+        field_name="visual_embedding", datatype=DataType.FLOAT_VECTOR,
+        dim=expected_vector_dim,
+    )
+    schema.add_field(field_name="thumbnail", datatype=DataType.VARCHAR, max_length=512)
+    schema.add_field(field_name="corpus_version", datatype=DataType.VARCHAR, max_length=128)
+    index_params = client.prepare_index_params()
+    index_params.add_index(field_name="id", index_type="STL_SORT")
+    index_params.add_index(
+        field_name="visual_embedding", index_type="AUTOINDEX", metric_type="COSINE",
+    )
+    client.create_collection(
+        collection_name=collection_name, schema=schema, index_params=index_params,
+    )
+    validate_collection_schema(
+        client.describe_collection(collection_name), expected_vector_dim=expected_vector_dim,
+    )
+    return True
+
+
 def stable_primary_key(corpus_version: str, video_id: str, frame_id: int) -> int:
     """Return a deterministic positive int64 key for one published frame."""
     if not corpus_version or not video_id or frame_id < 0:

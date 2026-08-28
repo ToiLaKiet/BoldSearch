@@ -50,6 +50,15 @@ PYTHONPATH=. python -m boldsearch_integration.cli ingest \
   --dry-run
 ```
 
+Before the first non-dry-run ingest, create a separate visual-only collection.
+The command is idempotent: an existing collection is validated, never dropped
+or changed.
+
+```bash
+PYTHONPATH=. python -m boldsearch_integration.cli bootstrap \
+  --collection BoldSearchV1 --expected-vector-dim 1024
+```
+
 Non-dry-run ingestion requires `pymilvus`, `ZILLIZ_URI`, and `ZILLIZ_TOKEN`.
 The adapter writes only `visual_embedding`; it never fabricates a caption
 embedding. It validates the collection schema before the first upsert, retries

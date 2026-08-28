@@ -5,7 +5,11 @@ import json
 import os
 from pathlib import Path
 
-from .milvus_ingest import build_milvus_rows, ingest_collection
+from .milvus_ingest import (
+    build_milvus_rows,
+    ensure_visual_collection,
+    ingest_collection,
+)
 from .publisher import publish_manifest, rollback_active_release
 from .runner import run_v1_and_publish
 
@@ -35,6 +39,14 @@ def build_parser() -> argparse.ArgumentParser:
     )
     rollback.add_argument("--output-root", type=Path, required=True)
     rollback.add_argument("--release-id", required=True)
+
+    bootstrap = subparsers.add_parser(
+        "bootstrap", help="create or validate a visual-only Milvus collection"
+    )
+    bootstrap.add_argument("--collection", required=True)
+    bootstrap.add_argument("--expected-vector-dim", type=int, default=1024)
+    bootstrap.add_argument("--uri", default=os.environ.get("ZILLIZ_URI", ""))
+    bootstrap.add_argument("--token", default=os.environ.get("ZILLIZ_TOKEN", ""))
 
     ingest = subparsers.add_parser(
         "ingest", parents=[common],
@@ -115,6 +127,23 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps({
             "release_id": args.release_id,
             "release_root": str(release),
+        }, ensure_ascii=False))
+        return 0
+    if args.command == "bootstrap":
+        if not args.uri:
+            raise SystemExit("--uri or ZILLIZ_URI is required")
+        try:
+            from pymilvus import MilvusClient
+        except ImportError as exc:
+            raise SystemExit("pymilvus is required for bootstrap") from exc
+        client = MilvusClient(uri=args.uri, token=args.token or None)
+        created = ensure_visual_collection(
+            client, args.collection, expected_vector_dim=args.expected_vector_dim,
+        )
+        print(json.dumps({
+            "collection": args.collection,
+            "created": created,
+            "expected_vector_dim": args.expected_vector_dim,
         }, ensure_ascii=False))
         return 0
 

@@ -6,6 +6,7 @@ import pytest
 
 from boldsearch_integration.milvus_ingest import (
     build_milvus_rows,
+    ensure_visual_collection,
     ingest_collection,
     ingest_rows,
     stable_primary_key,
@@ -162,3 +163,64 @@ def test_ingest_retries_transient_batch_and_resumes_from_progress(tmp_path: Path
         retries=0, progress_path=progress,
     ) == 0
     assert resumed.calls == 0
+
+
+def test_ensure_visual_collection_creates_or_validates_schema(monkeypatch) -> None:
+    class DataType:
+        INT64 = "INT64"
+        VARCHAR = "VARCHAR"
+        FLOAT_VECTOR = "FLOAT_VECTOR"
+
+    class Schema:
+        def __init__(self):
+            self.fields = []
+
+        def add_field(self, **kwargs):
+            self.fields.append(kwargs)
+
+    class IndexParams:
+        def __init__(self):
+            self.indexes = []
+
+        def add_index(self, **kwargs):
+            self.indexes.append(kwargs)
+
+    class Client:
+        def __init__(self):
+            self.created = None
+
+        def has_collection(self, _name):
+            return self.created is not None
+
+        def prepare_index_params(self):
+            return IndexParams()
+
+        def create_collection(self, **kwargs):
+            self.created = kwargs
+
+        def describe_collection(self, _name):
+            if self.created is None:
+                raise AssertionError("collection should have been created")
+            return {"fields": [
+                {"name": "id", "is_primary": True},
+                {"name": "video_id"}, {"name": "frame_id"},
+                {"name": "shot_id"},
+                {"name": "visual_embedding", "params": {"dim": 4}},
+                {"name": "thumbnail"}, {"name": "corpus_version"},
+            ]}
+
+    fake_module = type("Module", (), {
+        "MilvusClient": type("MilvusClient", (), {
+            "create_schema": staticmethod(lambda **_kwargs: Schema()),
+        }),
+        "DataType": DataType,
+    })()
+    monkeypatch.setitem(__import__("sys").modules, "pymilvus", fake_module)
+    client = Client()
+
+    assert ensure_visual_collection(client, "BoldSearchV1", expected_vector_dim=4) is True
+    assert [field["field_name"] for field in client.created["schema"].fields] == [
+        "id", "video_id", "frame_id", "shot_id", "visual_embedding",
+        "thumbnail", "corpus_version",
+    ]
+    assert ensure_visual_collection(client, "BoldSearchV1", expected_vector_dim=4) is False

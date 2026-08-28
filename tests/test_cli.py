@@ -1,6 +1,8 @@
 import json
 from pathlib import Path
 
+import pytest
+
 from boldsearch_integration.cli import main
 from boldsearch_integration.publisher import publish_manifest, resolve_active_release
 from test_publisher_contract import make_pipeline_output
@@ -50,3 +52,9 @@ def test_rollback_command_switches_active_release(tmp_path: Path, capsys) -> Non
     result = json.loads(capsys.readouterr().out)
     assert result["release_id"] == first.release_id
     assert resolve_active_release(public) == first.release_root
+
+
+def test_bootstrap_command_requires_zilliz_uri() -> None:
+    with pytest.raises(SystemExit) as exc:
+        main(["bootstrap", "--collection", "BoldSearchV1"])
+    assert "ZILLIZ_URI" in str(exc.value)
