@@ -51,7 +51,7 @@ def test_overlay_sends_visual_request_only(monkeypatch) -> None:
                 {"name": "shot_id"}, {"name": "visual_embedding"},
             ]}
 
-        def hybrid_search(self, **kwargs):
+        def search(self, **kwargs):
             calls.append(kwargs)
             return [[{"id": 1, "entity": {"video_id": "L21_V001"}}]]
 
@@ -64,9 +64,8 @@ def test_overlay_sends_visual_request_only(monkeypatch) -> None:
     )
     result = service._hybrid_search(config, Client(), None, [0.1, 0.2], 5)
     assert result["code"] == 0
-    request = calls[0]["reqs"][0].kwargs
-    assert request["anns_field"] == "visual_embedding"
-    assert calls[0]["ranker"].weights == (1.0,)
+    assert calls[0]["anns_field"] == "visual_embedding"
+    assert calls[0]["search_params"]["metric_type"] == "COSINE"
 
     monkeypatch.setenv("BOLDSEARCH_SEARCH_MODALITIES", "visual,caption")
     with pytest.raises(ValueError, match="caption_embedding"):

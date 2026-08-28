@@ -61,7 +61,7 @@ def patch_visual_search(service_module: Any) -> None:
         if query_embedding is None:
             raise ValueError("query embedding is required")
         try:
-            from pymilvus import AnnSearchRequest, WeightedRanker
+            from pymilvus import WeightedRanker
         except ImportError as exc:
             raise RuntimeError("pymilvus is required for Zilliz search") from exc
 
@@ -83,24 +83,30 @@ def patch_visual_search(service_module: Any) -> None:
         modalities = select_search_modalities(
             requested, available, has_query_embedding=True, weights=weights
         )
-        specs = [
-            AnnSearchRequest(**request_kwargs(
-                modality, query_embedding=list(query_embedding),
-                top_k=top_k, expr=expr,
-            ))
-            for modality in modalities
-        ]
         output_fields = _output_fields(config, available)
 
-        if len(specs) == 1:
-            raw = client.hybrid_search(
+        if len(modalities) == 1:
+            # Use the regular single-vector API for visual-only V1 collections;
+            # this avoids requiring a hybrid ranker for one ANN field.
+            modality = modalities[0]
+            raw = client.search(
                 collection_name=collection,
-                reqs=specs,
-                ranker=WeightedRanker(modalities[0].weight),
+                data=[list(query_embedding)],
+                anns_field=modality.anns_field,
+                search_params={"metric_type": modality.metric_type, "params": {}},
+                filter=expr or "",
                 limit=top_k,
                 output_fields=output_fields,
             )
         else:
+            from pymilvus import AnnSearchRequest
+            specs = [
+                AnnSearchRequest(**request_kwargs(
+                    modality, query_embedding=list(query_embedding),
+                    top_k=top_k, expr=expr,
+                ))
+                for modality in modalities
+            ]
             raw = client.hybrid_search(
                 collection_name=collection,
                 reqs=specs,
