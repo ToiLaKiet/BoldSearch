@@ -99,6 +99,15 @@ npm --prefix "$BOLDSEARCH_FRONTEND_ROOT" exec -- vite build \
 
 Serve that directory and the active publisher release through
 `boldsearch_integration.gateway`; expose only the gateway port to cloudflared.
+For example:
+
+```bash
+export BOLDSEARCH_PUBLIC_ROOT=/kaggle/working/boldsearch-public
+export BOLDSEARCH_FRONTEND_DIST=/kaggle/working/boldsearch-public/frontend-dist
+export BOLDSEARCH_BACKEND=http://127.0.0.1:8000
+PYTHONPATH=/kaggle/working/boldsearch-integration \
+python -m boldsearch_integration.gateway
+```
 
 The tunnel helper downloads the architecture-specific official binary on first
 use and records its own PID, so rerunning it does not kill unrelated processes:
