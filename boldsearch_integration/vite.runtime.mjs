@@ -9,7 +9,7 @@ const outputRoot = resolve(
 );
 const reactPluginPath = resolve(
   frontendRoot,
-  'node_modules/@vitejs/plugin-react/index.js',
+  'node_modules/@vitejs/plugin-react/dist/index.js',
 );
 
 function runtimeTransform() {

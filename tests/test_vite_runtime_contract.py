@@ -7,6 +7,7 @@ def test_runtime_vite_config_is_source_preserving() -> None:
     assert "http://0.0.0.0:8000/api" in config
     assert "const API_BASE = '/api';" in config
     assert "BOLDSEARCH_FRONTEND_DIST" in config
+    assert "node_modules/@vitejs/plugin-react/dist/index.js" in config
     assert "emptyOutDir: true" in config
     assert "loading=\"lazy\"" in config
     assert "decoding=\"async\"" in config
