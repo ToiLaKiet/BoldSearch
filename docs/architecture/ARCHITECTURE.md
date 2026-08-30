@@ -1,11 +1,11 @@
 # BoldSearch Architecture
 
-Status: **current runtime and approved evolution**
+Status: **current runtime and proposed evolution**
 Project: HCM AI Challenge Pipeline 2026 / BoldSearch
 
 ## Scope and evidence
 
-This document describes the implementation in `app/` as of 2026-08-27 and the smallest approved direction for evolving it. It does not claim that planned adapters, benchmark tooling, or services already exist.
+This document describes the implementation in `app/` as of 2026-08-30 and the smallest agreed direction for evolving it. It does not claim that planned adapters, benchmark tooling, or services already exist.
 
 | Claim | Status | Evidence |
 |---|---|---|
@@ -13,7 +13,7 @@ This document describes the implementation in `app/` as of 2026-08-27 and the sm
 | The API is a FastAPI process with an application lifespan. | Verified | `app/backend/main.py` |
 | Search uses FG-CLIP query embeddings and Zilliz/Milvus hybrid search over visual and caption embedding fields. | Verified | `app/backend/encoders/fg_clip.py`, `app/backend/search/service.py` |
 | Object metadata is loaded from `detections.csv` into memory at startup and enriches results after retrieval. | Verified | `app/backend/main.py`, `app/backend/search/object_index.py` |
-| Submissions are local accepted payloads; exporting the official BTC package remains a manual workflow. | Verified | `app/backend/search/router.py`, `docs/SUBMISSION_GUIDE_R1.md` |
+| Submissions are local accepted payloads; exporting the official BTC package remains a manual workflow. | Verified | `app/backend/search/router.py`, `docs/knowledge/SUBMISSION_GUIDE.md` |
 | A benchmark-driven second vector-store provider is not currently justified. | Decision | Current runtime has one provider and no shared provider contract tests. |
 
 ## Architectural decision
@@ -24,7 +24,9 @@ The `search` capability is the first-class backend boundary. Its public HTTP con
 
 ## Current system view
 
-Source diagram: `architecture/system-overview.mmd`; exported preview: [`architecture/system-overview.svg`](architecture/system-overview.svg).
+Source diagram: `diagrams/system-overview.mmd`; exported preview: [`diagrams/system-overview.svg`](diagrams/system-overview.svg).
+
+`diagrams/embedding-vector-pipeline.mmd` (and its exported `.svg`) depicts the **planned** embedding/vector-store pipeline — Beit3, a `VectorStore` contract, Qdrant, and MLflow are candidate/future work, not the current runtime. Regenerate the `.svg` from the `.mmd` source after editing it.
 
 ```text
 Challenge operator
@@ -47,8 +49,9 @@ FastAPI serves official keyframe images and frame-map CSV files from ignored roo
 | HTTP edge | Pydantic validation, endpoint selection, and HTTP error mapping. | `search/router.py`, `search/schema.py` |
 | Search workflow | Text/image query orchestration, staged temporal narrowing, object enrichment, and response shaping. | `search/service.py` |
 | Model adapter | Long-lived FG-CLIP model state and normalized text/image embeddings. | `encoders/fg_clip.py` |
-| Retrieval adapter | Zilliz/Milvus client lifecycle and hybrid search invocation. | `connections.py`, Milvus-specific code in `search/service.py` |
+| Retrieval integration | Zilliz/Milvus client lifecycle and hybrid search invocation. | `connections.py`, Milvus-specific code in `search/service.py` (extracting this into a dedicated adapter is evolution item 1) |
 | Metadata store | CSV validation and frame-to-object lookup. | `search/object_index.py`, `detections.csv` |
+| Offline evaluation gate | Score exported rankings without starting FastAPI, FG-CLIP, or Milvus. Runner inputs use `task_id`; the versioned `evaluation/cases/` templates use `case_id` and go through the exporter bridge. | `evaluation/runner.py`, `evaluation/export.py`, `evaluation/README.md` |
 | Static media | Official keyframes and per-video frame maps. | ignored `data/keyframes`, `data/map-keyframes`, served by FastAPI |
 
 `main.py` is the composition root. Its FastAPI lifespan loads the object index, opens the Milvus client, and loads FG-CLIP once; these resources are stored in `app.state`. Shutdown explicitly closes the Milvus client; the in-memory object index and encoder are released with process teardown.
@@ -73,7 +76,7 @@ FastAPI serves official keyframe images and frame-map CSV files from ignored roo
 
 1. The UI posts KIS, VQA, or TRAKE selections to `/api/search/submit/*`.
 2. The API validates and returns a local accepted payload.
-3. The operator transfers the result to the official BTC CSV/ZIP submission workflow described in `docs/SUBMISSION_GUIDE_R1.md`.
+3. The operator transfers the result to the official BTC CSV/ZIP submission workflow described in `docs/knowledge/SUBMISSION_GUIDE.md`.
 
 ## Evolution plan
 

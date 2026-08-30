@@ -42,12 +42,11 @@ zilliz-cloud-AIC2026-username-password.txt
 *.sqlite
 *.db
 models/
-artifacts/
-data/raw/
-data/processed/
 benchmark-reports/
 vector-db-data/
-/data/
+# Machine-local corpus and outputs; the layout contract (README) stays tracked
+/data/*
+!/data/README.md
 
 # Local code indexes and generated caches
 .codegraph/

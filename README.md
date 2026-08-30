@@ -4,7 +4,7 @@
 
 BoldSearch pairs a React operator interface with a FastAPI retrieval API. It creates FG-CLIP text or image embeddings, searches a Zilliz/Milvus collection, enriches results with object-detection metadata, and serves the local keyframe corpus for visual verification.
 
-> The in-app **Submit** action validates and accepts a payload locally. Official BTC delivery is a separate CSV-and-ZIP workflow; see the [submission guide](docs/SUBMISSION_GUIDE_R1.md).
+> The in-app **Submit** action validates and accepts a payload locally. Official BTC delivery is a separate CSV-and-ZIP workflow; see the [submission guide](docs/knowledge/SUBMISSION_GUIDE.md).
 
 ---
 
@@ -14,8 +14,12 @@ BoldSearch pairs a React operator interface with a FastAPI retrieval API. It cre
 | --- | --- |
 | **Text, object, and image-reference search**<br>Search frame embeddings from text queries, optional object hints, or an uploaded visual cue. | **KIS and VKIS**<br>Find a known target frame from text or an image reference. |
 | **Staged temporal narrowing**<br>Use multiple text queries to scope later retrieval stages to the preceding result context. | **VQA**<br>Select a frame and record a free-text answer. |
-| **Frame inspection**<br>Open returned keyframes, load per-video frame maps, and inspect nearby frames before choosing an answer. | **TRAKE**<br>Select multiple ordered frames from one video for temporal key events. |
+| **Frame inspection**<br>Open returned keyframes, load per-video frame maps, and inspect nearby frames before choosing an answer. | **TRAKE**<br>Select multiple ordered frames for temporal key events; submissions are grouped one request per video. |
 | **Offline evaluation**<br>Evaluate exported rankings against task cards without starting FastAPI, FG-CLIP, or Milvus. | **Local media serving**<br>Keep the keyframe corpus outside the frontend bundle while serving it through FastAPI. |
+
+## Competition knowledge
+
+- [General submission guide](docs/knowledge/SUBMISSION_GUIDE.md)
 
 ---
 
@@ -32,15 +36,18 @@ BoldSearch pairs a React operator interface with a FastAPI retrieval API. It cre
 
 ### 1. Prepare local runtime data and configuration
 
-Keep the media corpus outside the Vite application bundle:
+Keep the media corpus outside the Vite application bundle. Directories fall into four categories — see the tracked [data/README.md](data/README.md) contract for the full table:
 
 ```text
-data/
-├── keyframes/        # local keyframe images
-└── map-keyframes/    # per-video frame-map CSV files
+data/                 # machine-local; populated from team storage or BTC packages
+├── keyframes/        # served corpus: keyframe images
+├── map-keyframes/    # served corpus: per-video frame maps
+├── aic2026-downloads/    # raw BTC packages
+├── aic2026-<round>/      # per-round working dirs (ZIP, results, picks)
+└── frames|metadata|vectors/  # per-video derived artifacts
 
 app/backend/
-└── detections.csv    # frame object-detection metadata
+└── detections.csv    # tracked frame object-detection metadata
 ```
 
 Create an ignored `app/backend/.env` file and provide the connection settings for your environment. At minimum, configure `ZILLIZ_URI`, `ZILLIZ_TOKEN`, and `MILVUS_COLLECTION`; use `OBJECTS_CSV_PATH`, `DATA_DIR`, or `FG_CLIP_DEVICE` only when their defaults do not fit your machine or file layout.
@@ -80,7 +87,7 @@ Open [http://localhost:5173](http://localhost:5173). During development, Vite pr
 3. FastAPI validates the request. FG-CLIP encodes the query, then the search workflow executes hybrid retrieval against Zilliz/Milvus.
 4. Multiple text queries narrow subsequent stages to the current frame context. Retrieved rows are enriched from the in-memory `detections.csv` index.
 5. The API returns normalized frame results. FastAPI serves keyframes and frame-map CSVs from `data/` so the UI can display and inspect the evidence.
-6. The UI sends selected KIS, VQA, or TRAKE answers to the local submission endpoints. Package official results separately as described in the [submission guide](docs/SUBMISSION_GUIDE_R1.md).
+6. The UI sends selected KIS, VQA, or TRAKE answers to the local submission endpoints. Package official results separately as described in the [submission guide](docs/knowledge/SUBMISSION_GUIDE.md).
 
 ## API surface
 
@@ -92,6 +99,7 @@ Open [http://localhost:5173](http://localhost:5173). During development, Vite pr
 | `POST` | `/api/search/submit/kis` | Validate a local KIS frame selection. |
 | `POST` | `/api/search/submit/vqa` | Validate a local VQA frame-and-answer selection. |
 | `POST` | `/api/search/submit/trake` | Validate local ordered TRAKE frame selections. |
+| `POST` | `/api/search/submit` | Legacy single-payload submit alias kept for compatibility. |
 
 The backend also serves `/keyframes` and `/map-keyframes` from the configured local data directories.
 
@@ -102,17 +110,24 @@ The backend also serves `/keyframes` and `/map-keyframes` from the configured lo
 ```text
 .
 ├── app/
-│   ├── backend/              # FastAPI API, FG-CLIP adapter, Milvus access, and evaluation runner
+│   ├── backend/              # FastAPI API, FG-CLIP encoder, Milvus access, and evaluation runner
 │   └── frontend/             # Vite React operator interface
-├── architecture/             # system diagrams
-├── docs/                     # architecture and operational guides
-├── data/                     # ignored local media and evaluation artifacts
+├── docs/                     # architecture, diagrams, operational guides, and competition knowledge
+├── okf/                      # OKF knowledge bundle with provenance (start at okf/index.md)
+├── data/                     # machine-local data; tracked layout contract in data/README.md
+├── src/                      # exploratory notebooks and analysis spikes
+├── .github/                  # Copilot instructions and CI workflows
+├── AGENTS.md                 # coding-agent guidance
+├── CLAUDE.md                 # Claude Code entry (imports AGENTS.md)
+├── GIT_CONVENTION.md         # branch and commit rules
+├── PROGRESS.md               # implementation history and team handoff
+├── BLOCKERS.md               # current blockers
 └── README.md                 # project entry point
 ```
 
 `app/backend/main.py` is the composition root. At startup it loads the detection index, opens the Milvus client, and optionally loads FG-CLIP once into application state. The `search` module owns the public HTTP contract, request orchestration, result shaping, and local submission validation.
 
-For the current runtime boundaries and planned evolution, read [Architecture](docs/ARCHITECTURE.md). For backend data contracts and offline evaluation, see the [backend README](app/backend/README.md) and [evaluation README](app/backend/evaluation/README.md).
+For the current runtime boundaries and planned evolution, read [Architecture](docs/architecture/ARCHITECTURE.md). For backend data contracts and offline evaluation, see the [backend README](app/backend/README.md) and [evaluation README](app/backend/evaluation/README.md).
 
 ## Configuration
 
@@ -127,6 +142,8 @@ Backend settings read environment variables and `app/backend/.env`. Relative bac
 | Frontend origin | `VITE_API_URL`, `VITE_STATIC_MEDIA_URL` | Configure the API proxy and production static-media origin. |
 
 `ZILLIZ_TOKEN` and `HF_TOKEN` are secrets. Keep them server-side in the backend environment; values prefixed with `VITE_` are browser-visible and must not contain secrets.
+
+Common settings are listed below; the full field list lives in [`app/backend/.env.example`](app/backend/.env.example).
 
 ---
 
@@ -147,8 +164,8 @@ Backend settings read environment variables and `app/backend/.env`. Relative bac
 Run the narrowest check that proves your change. Before sharing a cross-stack change, run:
 
 ```sh
-cd app/backend && uv run pytest
-cd app/frontend && npm test && npm run build
+(cd app/backend && uv run pytest)
+(cd app/frontend && npm test && npm run build)
 ```
 
 For retrieval-quality changes, export rankings and use the offline evaluation runner rather than treating a successful API start as relevance evidence. The runner contract and command are documented in [`app/backend/evaluation/README.md`](app/backend/evaluation/README.md).
@@ -159,4 +176,4 @@ For retrieval-quality changes, export rankings and use the offline evaluation ru
 - Translation is best-effort: a translation failure preserves the original text query rather than making search unavailable.
 - Preserve both snake_case and compatibility camelCase frame fields in API responses; the frontend relies on both forms.
 - The official corpus remains under ignored `data/`; do not copy it into Vite `public` or `dist`.
-- Follow [docs/GIT_CONVENTION.md](docs/GIT_CONVENTION.md) for branches and commits.
+- Follow [GIT_CONVENTION.md](GIT_CONVENTION.md) for branches and commits. See [PROGRESS.md](PROGRESS.md) and [BLOCKERS.md](BLOCKERS.md) for the current team handoff state.

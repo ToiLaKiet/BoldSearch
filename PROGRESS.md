@@ -1,3 +1,20 @@
+### [2026-08-30 12:03 UTC+07:00] — [Docs] Move workflow documents to repository root
+
+**Done:**
+
+- Moved `GIT_CONVENTION.md`, `PROGRESS.md`, and `BLOCKERS.md` to the repository root with `git mv` (history preserved); `docs/` keeps only long-lived guides.
+- Added repository-wide Copilot instructions (`.github/copilot-instructions.md`) carrying the Conventional Commit rules for Copilot-generated commit messages.
+- Updated active references in `README.md` and `AGENTS.md`; historical log entries below keep their original paths.
+
+**Changed files:**
+
+- `GIT_CONVENTION.md`, `PROGRESS.md`, `BLOCKERS.md` (moved from `docs/`)
+- `.github/copilot-instructions.md` (new)
+- `CLAUDE.md` (new; imports `AGENTS.md` via `@AGENTS.md`)
+- `README.md`, `AGENTS.md` (references)
+
+**Verified:** `git diff --check` clean; renames detected by `git status`; markdown links to the new root paths resolve.
+
 ### [2026-08-27 18:29 UTC+07:00] — [Feature] Land keyframe media serving; evaluation core back to WIP
 
 **Done:**
