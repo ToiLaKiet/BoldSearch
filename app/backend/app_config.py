@@ -48,6 +48,11 @@ class AppConfig(BaseSettings):
     KEYFRAME_MAP_DIR: Path = DEFAULT_DATA_DIR / "map-keyframes"
     EVALUATION_ARTIFACT_DIR: Path = DEFAULT_DATA_DIR / "evaluation-artifacts"
 
+    # ── Evaluation run labels (fill via .env for this machine) ──
+    EVALUATION_CORPUS_VERSION: str = ""
+    EVALUATION_PREPROCESSING_VERSION: str = ""
+    EVALUATION_QUERY_STRATEGY: str = ""
+
     # ── Response presentation ────────────────────────────────────
     FRAME_IMAGE_URL_TEMPLATE: str = ""
     INCLUDE_EMBEDDING_IN_RESPONSE: bool = False
