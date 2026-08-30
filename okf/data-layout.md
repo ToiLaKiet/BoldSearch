@@ -22,7 +22,7 @@ The boundary is: **per-machine corpus and generated artifacts → ignored `data/
 | --- | --- | --- | --- |
 | `data/keyframes/`, `data/map-keyframes/`, evaluation artifacts | No (ignored) | Per-machine corpus, ~29 GB | FastAPI static mounts at `/keyframes`, `/map-keyframes` |
 | `data/aic2026-downloads/` | No | Raw BTC-provided packages (keyframes, metadata) | Manual extraction source |
-| `data/aic2026-p2/` | No | Round-2 working area: submission ZIPs and local scripts | Manual submission workflow |
+| `data/aic2026-p2/` | No | Round-2 working dir: submission ZIP, `results/`, `submission/` CSVs, `picks.json` — pipeline scripts live in tracked `scripts/p2/` | `scripts/p2/` pipeline |
 | `data/{frames,metadata,vectors}/<video_id>/` | No | Per-video derived artifacts (extracted frames, metadata, embeddings) | Local pipelines |
 | `data/csv/` | No | Currently empty scratch | — |
 | `app/backend/detections.csv` | Yes | Object-detection metadata, 168 KB | Backend via `OBJECTS_CSV_PATH` |
