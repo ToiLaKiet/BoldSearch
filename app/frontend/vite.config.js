@@ -11,6 +11,9 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [react()],
     server: {
+      // Allow ngrok tunnel hosts (Vite blocks unknown Host headers by default).
+      host: true,
+      allowedHosts: true,
       proxy: {
         '/api': {
           target: backendTarget,
