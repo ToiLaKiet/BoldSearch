@@ -1,26 +1,22 @@
 flowchart LR
-  User[Challenge operator / participant] --> UI[Vite React UI]
-  UI --> API[Flask API routes]
+  User[Challenge operator] --> UI[Vite React UI]
+  UI --> API[FastAPI /api/search routes]
 
-  subgraph Backend[Modular monolith backend]
-    API --> Retrieval[Retrieval use cases]
-    API --> Submission[Submission use cases]
-    Retrieval --> Catalog[Shot catalog repository]
-    Retrieval --> Scoring[Pure scoring and grouping policies]
-    Retrieval --> Encoder[Embedding encoder port]
-    Retrieval --> Store[Vector store port]
-    Submission --> Catalog
+  subgraph Backend[BoldSearch modular monolith]
+    API --> Router[Router and Pydantic schemas]
+    Router --> Search[Search workflow]
+    Router --> Submission[Local submission payloads]
+    Search --> Encoder[FG-CLIP encoder]
+    Search --> Milvus[Zilliz/Milvus hybrid search]
+    Search --> Objects[In-memory detection index]
   end
 
-  Catalog --> LocalJSON[(Sample shots.json)]
-  Encoder --> FGCLIP[FG-CLIP adapter]
-  Encoder --> BEIT3[BEiT-3 adapter]
-  Store --> Milvus[Milvus adapter]
-  Store --> Qdrant[Qdrant adapter]
+  Objects --> CSV[(detections.csv)]
+  UI --> Media[Static keyframes and frame maps]
 
-  subgraph Offline[Offline pipeline and benchmark]
-    Media[Videos and keyframes] --> Artifact[Embedding artifact + manifest]
-    Artifact --> Harness[Benchmark harness]
-    Harness --> Store
-    Harness --> Report[Benchmark report and ADR input]
+  subgraph Planned[Validated evolution]
+    Artifact[Versioned embedding artifact] --> Benchmark[Retrieval benchmark]
+    Benchmark --> Decision[Provider decision]
+    Search -. isolate provider calls .-> Adapter[Milvus adapter]
+    Media -. serve separately .-> StaticHost[Static media host]
   end

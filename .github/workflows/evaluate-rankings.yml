@@ -1,0 +1,67 @@
+name: Evaluate rankings
+
+on:
+  workflow_dispatch:
+    inputs:
+      tasks_path:
+        description: Path below app/backend to the versioned task-card JSONL file
+        required: true
+        type: string
+      rankings_path:
+        description: Path below app/backend to the ranking-export JSONL file
+        required: true
+        type: string
+      metadata_path:
+        description: Path below app/backend to the immutable run metadata JSON file
+        required: true
+        type: string
+      k:
+        description: Comma-separated K values for Recall@K
+        default: 1,5,10
+        required: false
+        type: string
+
+jobs:
+  evaluate:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app/backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v5
+      - name: Install evaluation dependencies
+        run: uv sync --locked --group dev
+      - name: Validate input files
+        env:
+          TASKS_PATH: ${{ inputs.tasks_path }}
+          RANKINGS_PATH: ${{ inputs.rankings_path }}
+          METADATA_PATH: ${{ inputs.metadata_path }}
+        run: |
+          BACKEND_ROOT="$(pwd -P)"
+          for INPUT_PATH in "$TASKS_PATH" "$RANKINGS_PATH" "$METADATA_PATH"; do
+            RESOLVED_PATH="$(realpath "$INPUT_PATH")"
+            case "$RESOLVED_PATH" in
+              "$BACKEND_ROOT"/*) ;;
+              *) echo "Input path must stay below app/backend: $INPUT_PATH" >&2; exit 1 ;;
+            esac
+            test -f "$RESOLVED_PATH"
+          done
+      - name: Generate evaluation reports
+        env:
+          TASKS_PATH: ${{ inputs.tasks_path }}
+          RANKINGS_PATH: ${{ inputs.rankings_path }}
+          METADATA_PATH: ${{ inputs.metadata_path }}
+          K_VALUES: ${{ inputs.k }}
+          REPORT_DIR: ${{ runner.temp }}/evaluation-report
+        run: mkdir -p "$REPORT_DIR" && uv run python -m evaluation.runner --tasks "$TASKS_PATH" --rankings "$RANKINGS_PATH" --metadata "$METADATA_PATH" --output "$REPORT_DIR/report.json" --markdown-output "$REPORT_DIR/report.md" --k "$K_VALUES"
+      - name: Upload evaluation report
+        uses: actions/upload-artifact@v4
+        with:
+          name: evaluation-report
+          path: ${{ runner.temp }}/evaluation-report
+          if-no-files-found: error
+ 

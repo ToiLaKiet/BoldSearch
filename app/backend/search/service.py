@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import base64
 import binascii
+import csv
 from io import BytesIO
 import json
 import math
+from pathlib import Path
 import re
 from collections import Counter
 from typing import Any, Dict, List, Optional, Sequence, Tuple
@@ -895,13 +897,50 @@ def _response_raw(row: Dict[str, Any], config: AppConfig) -> Dict[str, Any]:
 
 
 def _thumbnail(config: AppConfig, row: Dict[str, Any]) -> str:
-    if not config.FRAME_IMAGE_URL_TEMPLATE:
+    template = config.FRAME_IMAGE_URL_TEMPLATE
+    if not template:
         return ""
-    return config.FRAME_IMAGE_URL_TEMPLATE.format(
+    video_id = str(row.get("video_id") or "")
+    keyframe_number = _nearest_keyframe_number(
+        config.KEYFRAME_MAP_DIR,
+        video_id,
+        row.get("frame_id"),
+    )
+    if "{keyframe_number}" in template and keyframe_number is None:
+        return ""
+    return template.format(
         frame_id=row.get("frame_id") or "",
         shot_id=row.get("shot_id") or "",
-        video_id=row.get("video_id") or "",
+        video_id=video_id,
+        keyframe_number=f"{keyframe_number:03d}" if keyframe_number is not None else "",
     )
+
+
+def _nearest_keyframe_number(
+    keyframe_map_dir: Path | str | None,
+    video_id: str,
+    frame_id: Any,
+) -> int | None:
+    try:
+        target_frame = int(frame_id)
+    except (TypeError, ValueError):
+        return None
+    if not keyframe_map_dir or not video_id:
+        return None
+
+    map_path = Path(keyframe_map_dir) / f"{video_id}.csv"
+    try:
+        with map_path.open(encoding="utf-8-sig", newline="") as handle:
+            candidates = [
+                (int(row["n"]), int(row["frame_idx"]))
+                for row in csv.DictReader(handle)
+                if row.get("n") and row.get("frame_idx")
+            ]
+    except (OSError, ValueError):
+        return None
+    if not candidates:
+        return None
+    return min(candidates, key=lambda candidate: abs(candidate[1] - target_frame))[0]
 
 
 def _title(video_id: str, frame_id: Any) -> str:

@@ -8,6 +8,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app_config import app_config
 from connections import close_connections, init_milvus
@@ -26,7 +27,7 @@ async def lifespan(app: FastAPI):
     app.state.object_index = load_object_index(app_config)
     print(f"Loaded object index with {len(app.state.object_index)} entries.")
     app.state.milvus_client = init_milvus(app_config)
-    print(f"Connected to Milvus at {app_config.ZILLIZ_URI}.")
+    print(f"Connected to Zilliz at {app_config.ZILLIZ_URI}.")
     app.state.embedding_encoder = (
         load_fg_clip_encoder(app_config.FG_CLIP_DEVICE or None, app_config.HF_TOKEN)
         if app_config.LOAD_FG_CLIP_ON_STARTUP
@@ -52,6 +53,19 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+)
+
+# Keyframe media is stored outside the frontend bundle to avoid copying the
+# corpus into Vite's production output.
+app.mount(
+    "/keyframes",
+    StaticFiles(directory=app_config.KEYFRAMES_DIR, check_dir=False),
+    name="keyframes",
+)
+app.mount(
+    "/map-keyframes",
+    StaticFiles(directory=app_config.KEYFRAME_MAP_DIR, check_dir=False),
+    name="map-keyframes",
 )
 
 # ── Register routers ─────────────────────────────────────────

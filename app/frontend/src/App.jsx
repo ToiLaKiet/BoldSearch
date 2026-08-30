@@ -1,9 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { apiOrigin, staticMediaUrl } from './staticMedia.js';
+import { resolveRequestTask } from './taskMode.js';
 
 // ── Cấu hình gốc ────────────────────────────────────────────────────
 
 /** Địa chỉ gốc của backend API (FastAPI đang chạy trên port 8000). */
-const API_BASE = 'http://0.0.0.0:8000/api';
+const API_ORIGIN = apiOrigin(import.meta.env.VITE_API_URL);
+const API_BASE = `${API_ORIGIN}/api`;
+const STATIC_MEDIA_BASE_URL = import.meta.env.VITE_STATIC_MEDIA_URL
+  || (import.meta.env.PROD ? API_ORIGIN : '');
 
 /**
  * Ba chế độ submit bài toán:
@@ -23,6 +28,7 @@ const defaultModalities = ['text', 'objects'];
  * Cấu trúc: { video_id: [{ frame_id: number, shot_id: string }, ...] }
  */
 let framesDbCache = null;
+const keyframeMapCache = new Map();
 
 /**
  * Đọc file Frames.csv từ thư mục /public và parse thành object tra cứu.
@@ -48,6 +54,46 @@ async function loadFramesDb() {
   } catch {
     return {}; // trả về rỗng nếu có lỗi fetch
   }
+}
+
+async function loadKeyframeMap(videoId) {
+  if (keyframeMapCache.has(videoId)) return keyframeMapCache.get(videoId);
+
+  try {
+    const response = await fetch(staticMediaUrl(`/map-keyframes/${videoId}.csv`, STATIC_MEDIA_BASE_URL));
+    if (!response.ok) throw new Error('Keyframe map is unavailable');
+
+    const [header, ...rows] = (await response.text()).trim().split(/\r?\n/);
+    const columns = header.split(',');
+    const keyframeIndex = columns.indexOf('n');
+    const frameIndex = columns.indexOf('frame_idx');
+    const mapping = rows
+      .map((row) => row.split(','))
+      .map((fields) => ({
+        keyframeNumber: Number.parseInt(fields[keyframeIndex], 10),
+        frameId: Number.parseInt(fields[frameIndex], 10),
+      }))
+      .filter((entry) => Number.isFinite(entry.keyframeNumber) && Number.isFinite(entry.frameId));
+
+    keyframeMapCache.set(videoId, mapping);
+    return mapping;
+  } catch {
+    keyframeMapCache.set(videoId, []);
+    return [];
+  }
+}
+
+function nearestKeyframeNumber(mapping, frameId) {
+  const target = Number(frameId);
+  if (!Number.isFinite(target) || !mapping.length) return null;
+
+  return mapping.reduce(
+    (closest, candidate) => (
+      Math.abs(candidate.frameId - target) < Math.abs(closest.frameId - target)
+        ? candidate
+        : closest
+    ),
+  ).keyframeNumber;
 }
 
 /**
@@ -117,18 +163,25 @@ function firstValue(item, keys) {
 /**
  * Tính đường dẫn ảnh thumbnail cho một keyframe.
  * Ưu tiên dùng trường frames_path/thumbnail từ API nếu có;
- * nếu không, tự ghép URL dạng /keyframes/{video_id}/{int(frame_id)}.png
+ * nếu có keyframe number đã map, ghép URL asset chính thức `.jpg`.
  */
 function keyframeImagePath(keyframe) {
   const explicitPath = firstValue(keyframe, ['frames_path', 'frame_path', 'thumbnail']);
-  if (explicitPath) return String(explicitPath);
+  if (explicitPath) return staticMediaUrl(explicitPath, STATIC_MEDIA_BASE_URL);
 
   const videoId = firstValue(keyframe, ['video_id', 'videoId']);
   const frameId = firstValue(keyframe, ['frame_id', 'frameId']);
+  const keyframeNumber = firstValue(keyframe, ['keyframe_number', 'keyframeNumber']);
   if (!videoId || frameId === null) return '';
 
-  // Dùng trực tiếp giá trị int của frame_id làm tên file (không padStart)
-  return `/keyframes/${videoId}/${parseInt(frameId, 10)}.png`;
+  if (keyframeNumber !== null) {
+    return staticMediaUrl(
+      `/keyframes/${videoId}/${String(keyframeNumber).padStart(3, '0')}.jpg`,
+      STATIC_MEDIA_BASE_URL,
+    );
+  }
+
+  return staticMediaUrl(`/keyframes/${videoId}/${parseInt(frameId, 10)}.png`, STATIC_MEDIA_BASE_URL);
 }
 
 /**
@@ -439,13 +492,18 @@ function FrameSlideshow({
   const [loading, setLoading] = useState(true);  // đang tải dữ liệu frame từ CSV
   const [lightboxSrc, setLightboxSrc] = useState(null); // src ảnh khi mở lightbox từ slideshow
   const [vqaInput, setVqaInput] = useState('');  // VQA answer local state — tránh controlled-input lag
+  const [copied, setCopied] = useState(false);
   const stripRef = useRef(null); // ref tới filmstrip để auto-scroll tới active thumb
 
   // Khi videoId hoặc currentFrameId thay đổi: tải lại danh sách frame và nhảy tới frame được chọn
   useEffect(() => {
     setLoading(true);
-    loadFramesDb().then((db) => {
-      const videoFrames = db[videoId] || [];
+    Promise.all([loadFramesDb(), loadKeyframeMap(videoId)]).then(([db, keyframeMap]) => {
+      const videoFrames = (db[videoId] || []).map((frame) => ({
+        ...frame,
+        video_id: videoId,
+        keyframe_number: nearestKeyframeNumber(keyframeMap, frame.frame_id),
+      }));
       setFrames(videoFrames);
       const targetId = parseInt(currentFrameId, 10);
       const idx = videoFrames.findIndex((f) => f.frame_id === targetId);
@@ -466,6 +524,7 @@ function FrameSlideshow({
   // Reset VQA input khi chuyển sang frame khác
   useEffect(() => {
     setVqaInput('');
+    setCopied(false);
   }, [activeIdx]);
 
   // Lắng nghe phím ← → để điều hướng frame không cần click chuột
@@ -492,10 +551,7 @@ function FrameSlideshow({
   }
 
   const activeFrame = frames[activeIdx]; // frame đang xem trong main viewer
-  // Đường dẫn ảnh của frame đang xem (dùng int của frame_id, không padStart)
-  const imgSrc = activeFrame
-    ? `/keyframes/${videoId}/${parseInt(activeFrame.frame_id, 10)}.png`
-    : '';
+  const imgSrc = activeFrame ? keyframeImagePath(activeFrame) : '';
   // Frame object chuẩn hóa để dùng trong hàm submit (có video_id)
   const activeSubmitFrame = activeFrame
     ? { ...activeFrame, video_id: videoId, videoId }
@@ -565,7 +621,7 @@ function FrameSlideshow({
 
       <div className="ss-strip" ref={stripRef}>
         {frames.map((f, idx) => {
-          const thumbSrc = `/keyframes/${videoId}/${parseInt(f.frame_id, 10)}.png`;
+          const thumbSrc = keyframeImagePath(f);
           const isCurrent = f.frame_id === parseInt(currentFrameId, 10);
           const isActive = idx === activeIdx;
           const frameLikeForStrip = { ...f, video_id: videoId, videoId };
@@ -614,6 +670,26 @@ function FrameSlideshow({
               <span className="ss-submit-hint">
                 Video {videoId} / Frame {activeFrame.frame_id}
               </span>
+              {activeSubmitStatus === 'success' && (
+                <div className="ss-submit-confirmation">
+                  <span>Saved locally — submit this answer in the BTC portal.</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!navigator.clipboard) {
+                        setCopied(false);
+                        return;
+                      }
+
+                      navigator.clipboard.writeText(`${videoId} / Frame ${activeFrame.frame_id}`)
+                        .then(() => setCopied(true))
+                        .catch(() => setCopied(false));
+                    }}
+                  >
+                    {copied ? 'Copied' : 'Copy answer'}
+                  </button>
+                </div>
+              )}
             </>
           )}
 
@@ -805,11 +881,11 @@ export default function App() {
 
   /**
    * Xác định loại task cho search request:
-   * - VKIS: nếu có ảnh visual cue (visual KIS)
-   * - KIS: tìm kiếm thông thường bằng text/objects
+   * - KIS/VQA/TRAKE: giữ đúng mode người dùng đang chọn cho text search
+   * - submit ảnh vẫn dùng mode hiện tại; visual search tự gửi VKIS tại request body
    */
   function getRequestTask() {
-    return imageCue || modalities.includes('image') ? 'KIS' : 'KIS';
+    return resolveRequestTask(taskMode);
   }
 
   /**
@@ -996,8 +1072,10 @@ export default function App() {
       }
 
       await response.json();
-      // Clear all submit status after successful KIS submit
-      setSubmitStatusByFrame({});
+      setSubmitStatusByFrame((current) => ({
+        ...current,
+        [submitKey]: 'success',
+      }));
 
     } catch {
       setSubmitStatusByFrame((current) => ({
@@ -1083,14 +1161,16 @@ export default function App() {
       // Xây dựng request body tùy theo chế độ
       const requestBody = hasImageReference
         ? {
-          task: 'VKIS',
+          task: resolveRequestTask(taskMode, true),
           minConfidence,
+          topK: 100,
           imageCue: imageCuePayload,
         }
         : {
           query: query.trim(),
           queries: queryList,           // tất cả query text
           task: getRequestTask(),
+          topK: 100,
           modalities,
           objects: objectPayload.map((item) => item.query),
           objectQueries: objectPayload, // object + số lượng
