@@ -118,7 +118,7 @@ The backend also serves `/keyframes` and `/map-keyframes` from the configured lo
 
 `app/backend/main.py` is the composition root. At startup it loads the detection index, opens the Milvus client, and optionally loads FG-CLIP once into application state. The `search` module owns the public HTTP contract, request orchestration, result shaping, and local submission validation.
 
-For the current runtime boundaries and planned evolution, read [Architecture](docs/ARCHITECTURE.md). For backend data contracts and offline evaluation, see the [backend README](app/backend/README.md) and [evaluation README](app/backend/evaluation/README.md).
+For the current runtime boundaries and planned evolution, read [Architecture](docs/architecture/ARCHITECTURE.md). For backend data contracts and offline evaluation, see the [backend README](app/backend/README.md) and [evaluation README](app/backend/evaluation/README.md).
 
 ## Configuration
 

@@ -11,7 +11,7 @@ sources:
     title: AppConfig — FRAME_IMAGE_URL_TEMPLATE, VITE_STATIC_MEDIA_URL
     last_modified: 2026-08-30
   - id: architecture-doc
-    resource: /docs/ARCHITECTURE.md
+    resource: /docs/architecture/ARCHITECTURE.md
     title: BoldSearch Architecture
 ---
 
