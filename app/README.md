@@ -40,7 +40,7 @@ React UI -> /api/search/query or /api/search/visual_query -> FastAPI router
   -> normalized frame results -> keyframe image resolved from FastAPI-served frame-map CSV
 ```
 
-`main.py` loads the detection index, Milvus client, and FG-CLIP encoder once during FastAPI startup. The backend returns local accepted submission payloads only; create the BTC CSV/ZIP package separately as described in `../docs/SUBMISSION_GUIDE_R1.md`.
+`main.py` loads the detection index, Milvus client, and FG-CLIP encoder once during FastAPI startup. The backend returns local accepted submission payloads only; create the BTC CSV/ZIP package separately as described in `../docs/knowledge/SUBMISSION_GUIDE.md`.
 
 ## Static media
 

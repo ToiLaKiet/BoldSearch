@@ -4,7 +4,7 @@
 
 BoldSearch pairs a React operator interface with a FastAPI retrieval API. It creates FG-CLIP text or image embeddings, searches a Zilliz/Milvus collection, enriches results with object-detection metadata, and serves the local keyframe corpus for visual verification.
 
-> The in-app **Submit** action validates and accepts a payload locally. Official BTC delivery is a separate CSV-and-ZIP workflow; see the [submission guide](docs/SUBMISSION_GUIDE_R1.md).
+> The in-app **Submit** action validates and accepts a payload locally. Official BTC delivery is a separate CSV-and-ZIP workflow; see the [submission guide](docs/knowledge/SUBMISSION_GUIDE.md).
 
 ---
 
@@ -16,6 +16,10 @@ BoldSearch pairs a React operator interface with a FastAPI retrieval API. It cre
 | **Staged temporal narrowing**<br>Use multiple text queries to scope later retrieval stages to the preceding result context. | **VQA**<br>Select a frame and record a free-text answer. |
 | **Frame inspection**<br>Open returned keyframes, load per-video frame maps, and inspect nearby frames before choosing an answer. | **TRAKE**<br>Select multiple ordered frames from one video for temporal key events. |
 | **Offline evaluation**<br>Evaluate exported rankings against task cards without starting FastAPI, FG-CLIP, or Milvus. | **Local media serving**<br>Keep the keyframe corpus outside the frontend bundle while serving it through FastAPI. |
+
+## Competition knowledge
+
+- [General submission guide](docs/knowledge/SUBMISSION_GUIDE.md)
 
 ---
 
@@ -80,7 +84,7 @@ Open [http://localhost:5173](http://localhost:5173). During development, Vite pr
 3. FastAPI validates the request. FG-CLIP encodes the query, then the search workflow executes hybrid retrieval against Zilliz/Milvus.
 4. Multiple text queries narrow subsequent stages to the current frame context. Retrieved rows are enriched from the in-memory `detections.csv` index.
 5. The API returns normalized frame results. FastAPI serves keyframes and frame-map CSVs from `data/` so the UI can display and inspect the evidence.
-6. The UI sends selected KIS, VQA, or TRAKE answers to the local submission endpoints. Package official results separately as described in the [submission guide](docs/SUBMISSION_GUIDE_R1.md).
+6. The UI sends selected KIS, VQA, or TRAKE answers to the local submission endpoints. Package official results separately as described in the [submission guide](docs/knowledge/SUBMISSION_GUIDE.md).
 
 ## API surface
 
@@ -105,7 +109,7 @@ The backend also serves `/keyframes` and `/map-keyframes` from the configured lo
 │   ├── backend/              # FastAPI API, FG-CLIP adapter, Milvus access, and evaluation runner
 │   └── frontend/             # Vite React operator interface
 ├── architecture/             # system diagrams
-├── docs/                     # architecture and operational guides
+├── docs/                     # architecture, operational guides, and competition knowledge
 ├── data/                     # ignored local media and evaluation artifacts
 ├── GIT_CONVENTION.md         # branch and commit rules
 ├── PROGRESS.md               # implementation history and team handoff

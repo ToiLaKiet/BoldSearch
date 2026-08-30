@@ -13,7 +13,7 @@ This document describes the implementation in `app/` as of 2026-08-27 and the sm
 | The API is a FastAPI process with an application lifespan. | Verified | `app/backend/main.py` |
 | Search uses FG-CLIP query embeddings and Zilliz/Milvus hybrid search over visual and caption embedding fields. | Verified | `app/backend/encoders/fg_clip.py`, `app/backend/search/service.py` |
 | Object metadata is loaded from `detections.csv` into memory at startup and enriches results after retrieval. | Verified | `app/backend/main.py`, `app/backend/search/object_index.py` |
-| Submissions are local accepted payloads; exporting the official BTC package remains a manual workflow. | Verified | `app/backend/search/router.py`, `docs/SUBMISSION_GUIDE_R1.md` |
+| Submissions are local accepted payloads; exporting the official BTC package remains a manual workflow. | Verified | `app/backend/search/router.py`, `docs/knowledge/SUBMISSION_GUIDE.md` |
 | A benchmark-driven second vector-store provider is not currently justified. | Decision | Current runtime has one provider and no shared provider contract tests. |
 
 ## Architectural decision
@@ -73,7 +73,7 @@ FastAPI serves official keyframe images and frame-map CSV files from ignored roo
 
 1. The UI posts KIS, VQA, or TRAKE selections to `/api/search/submit/*`.
 2. The API validates and returns a local accepted payload.
-3. The operator transfers the result to the official BTC CSV/ZIP submission workflow described in `docs/SUBMISSION_GUIDE_R1.md`.
+3. The operator transfers the result to the official BTC CSV/ZIP submission workflow described in `docs/knowledge/SUBMISSION_GUIDE.md`.
 
 ## Evolution plan
 

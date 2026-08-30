@@ -30,7 +30,7 @@ cd app/frontend && npm ci
 - `evaluation.runner` is an offline gate: it evaluates exported rankings without starting FastAPI, FG-CLIP, or Milvus. It requires metadata and writes experiment artifacts under ignored `app/backend/evaluation/runs/` when paths there are chosen.
 - The current runner and its inputs use `task_id`. The versioned `evaluation/cases/` templates use `case_id` and are intentionally incompatible until the runner migration lands; update the runner and its tests together.
 - Synthetic and `vision-draft` cases are not approved relevance judgments and must not be used for model-selection claims.
-- UI submit endpoints only accept local KIS/VQA/TRAKE payloads. Official BTC delivery is a separate manual ZIP containing a top-level `submission/` directory; see `docs/SUBMISSION_GUIDE_R1.md`.
+- UI submit endpoints only accept local KIS/VQA/TRAKE payloads. Official BTC delivery is a separate manual ZIP containing a top-level `submission/` directory; see `docs/knowledge/SUBMISSION_GUIDE.md`.
 
 ## Git
 
