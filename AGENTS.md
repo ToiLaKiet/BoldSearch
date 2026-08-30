@@ -2,6 +2,7 @@
 
 ## Structure
 
+- `okf/` is the project knowledge bundle (OKF v0.2); read `okf/index.md` for curated knowledge with provenance before answering "why is it like this" questions.
 - `app/backend` is a Python 3.12 FastAPI application; run its commands from that directory. `main.py` is the composition root: its lifespan loads the FG-CLIP encoder, Milvus client, and `detections.csv` index once into `app.state`.
 - Keep the public search contract at `app/backend/search/router.py` and `schema.py`; keep Milvus SDK details inside `search`. Preserve both snake_case and compatibility camelCase frame fields in responses.
 - `app/frontend` is a separate Vite React application. Text requests retain `KIS`, `VQA`, or `TRAKE`; image-reference requests use `VKIS`.
