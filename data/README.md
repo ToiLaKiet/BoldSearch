@@ -7,21 +7,19 @@ storage or the BTC download packages.
 
 ## Layout
 
-| Directory | Content |
-| --- | --- |
-| `keyframes/` | Keyframe images served by FastAPI at `/keyframes` |
-| `map-keyframes/` | Per-video frame-map CSVs served at `/map-keyframes` |
-| `aic2026-downloads/` | Raw BTC download packages (unextracted) |
-| `aic2026-p2/` | Round-2 working dir: submission ZIP, `results/`, `submission/` CSVs, `picks.json` |
-| `frames/`, `metadata/`, `vectors/` | Per-video derived artifacts (extraction, embedding runs) |
-| `evaluation-artifacts/` | Offline evaluation run outputs |
-| `csv/` | Scratch (currently empty) |
+Directories fall into four categories; concrete names may change per round, but every directory belongs to exactly one of these:
+
+| Category | Directories today | Content |
+| --- | --- | --- |
+| Served corpus | `keyframes/`, `map-keyframes/` | Keyframe images and per-video frame maps served by FastAPI at `/keyframes`, `/map-keyframes` |
+| Raw downloads | `aic2026-downloads/` | Unextracted BTC download packages, as received |
+| Round working dirs | `aic2026-p2/` | One per round (pattern `aic2026-<round>/`): submission ZIP, `results/`, submission CSVs, `picks.json` |
+| Derived artifacts | `frames/`, `metadata/`, `vectors/`, `evaluation-artifacts/`, `csv/` | Per-video extraction/embedding outputs and evaluation runs; reproducible per machine |
 
 ## Rules
 
 - Pipeline **scripts** must not live in this directory (git cannot see or blame
-  code placed here). The retired P2 pipeline is recoverable from git history
-  (commit `f98aa9f`).
+  code placed here). Retired round pipelines are recoverable from git history.
 - Never copy corpus files into the frontend `public/` or `dist/`.
-- Add new top-level directories here only with a row in this table and a matching
+- Add new directories here only with a row in this table and a matching
   entry in [okf/data-layout.md](../okf/data-layout.md).
