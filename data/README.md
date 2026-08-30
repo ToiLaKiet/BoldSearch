@@ -19,8 +19,9 @@ storage or the BTC download packages.
 
 ## Rules
 
-- Pipeline **scripts** live in the tracked [`scripts/p2/`](../scripts/p2/) — never
-  in this directory (git cannot see or blame code placed here).
+- Pipeline **scripts** must not live in this directory (git cannot see or blame
+  code placed here). The retired P2 pipeline is recoverable from git history
+  (commit `f98aa9f`).
 - Never copy corpus files into the frontend `public/` or `dist/`.
 - Add new top-level directories here only with a row in this table and a matching
   entry in [okf/data-layout.md](../okf/data-layout.md).
