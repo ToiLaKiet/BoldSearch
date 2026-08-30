@@ -13,7 +13,7 @@ Directories fall into four categories; concrete names may change per round, but 
 | --- | --- | --- |
 | Served corpus | `keyframes/`, `map-keyframes/` | Keyframe images and per-video frame maps served by FastAPI at `/keyframes`, `/map-keyframes` |
 | Raw downloads | `aic2026-downloads/` | Unextracted BTC download packages, as received |
-| Round working dirs | `aic2026-p2/` | One per round (pattern `aic2026-<round>/`): submission ZIP, `results/`, submission CSVs, `picks.json` |
+| Round working dirs | `aic2026-p2/` | One per round (pattern `aic2026-<round>/`): submission ZIP, `results/`, submission CSVs; optional `picks.json` overlay of verified picks |
 | Derived artifacts | `frames/`, `metadata/`, `vectors/`, `evaluation-artifacts/`, `csv/` | Per-video extraction/embedding outputs and evaluation runs; reproducible per machine |
 
 ## Rules

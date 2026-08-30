@@ -22,7 +22,7 @@ The boundary is: **per-machine corpus and generated artifacts → ignored `data/
 | --- | --- | --- | --- |
 | Served corpus: `data/keyframes/`, `data/map-keyframes/` | No (ignored) | Per-machine corpus, ~29 GB | FastAPI static mounts at `/keyframes`, `/map-keyframes` |
 | Raw downloads: `data/aic2026-downloads/` | No | Unextracted BTC packages, as received | Manual extraction source |
-| Round working dirs: `data/aic2026-<round>/` | No | Submission ZIP, `results/`, submission CSVs, `picks.json`; pipelines retire after each round (sources recoverable in git history) | Manual submission workflow |
+| Round working dirs: `data/aic2026-<round>/` | No | Submission ZIP, `results/`, submission CSVs; optional `picks.json` overlay. Pipelines retire after each round (sources recoverable in git history) | Manual submission workflow |
 | Derived artifacts: `data/{frames,metadata,vectors}/<video_id>/`, `data/evaluation-artifacts/`, `data/csv/` | No | Per-video extraction/embedding outputs, evaluation runs; scratch | Local pipelines |
 | `app/backend/detections.csv` | Yes | Object-detection metadata, 168 KB | Backend via `OBJECTS_CSV_PATH` |
 | `app/frontend/public/Frames.csv` | Yes | Frame lookup table, 1.7 MB | Browser `fetch('/Frames.csv')` |
