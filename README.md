@@ -107,6 +107,9 @@ The backend also serves `/keyframes` and `/map-keyframes` from the configured lo
 ├── architecture/             # system diagrams
 ├── docs/                     # architecture and operational guides
 ├── data/                     # ignored local media and evaluation artifacts
+├── GIT_CONVENTION.md         # branch and commit rules
+├── PROGRESS.md               # implementation history and team handoff
+├── BLOCKERS.md               # current blockers
 └── README.md                 # project entry point
 ```
 
@@ -159,4 +162,4 @@ For retrieval-quality changes, export rankings and use the offline evaluation ru
 - Translation is best-effort: a translation failure preserves the original text query rather than making search unavailable.
 - Preserve both snake_case and compatibility camelCase frame fields in API responses; the frontend relies on both forms.
 - The official corpus remains under ignored `data/`; do not copy it into Vite `public` or `dist`.
-- Follow [docs/GIT_CONVENTION.md](docs/GIT_CONVENTION.md) for branches and commits.
+- Follow [GIT_CONVENTION.md](GIT_CONVENTION.md) for branches and commits. See [PROGRESS.md](PROGRESS.md) and [BLOCKERS.md](BLOCKERS.md) for the current team handoff state.

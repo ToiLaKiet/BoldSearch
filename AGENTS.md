@@ -33,4 +33,6 @@ cd app/frontend && npm ci
 
 ## Git
 
-- Follow `docs/GIT_CONVENTION.md` when committing: lowercase `<type>/<scope>` branches and Conventional Commit messages. If HEAD is `main` or `master`, create the branch before the first commit; never force-push a default branch.
+- Follow `GIT_CONVENTION.md` at the repository root when committing: lowercase `<type>/<scope>` branches and Conventional Commit messages. If HEAD is `main` or `master`, create the branch before the first commit; never force-push a default branch.
+- `.github/copilot-instructions.md` applies the same Conventional Commit rules to Copilot-generated commit messages.
+- When resuming unfinished work, read `PROGRESS.md` and `BLOCKERS.md` at the repository root first.
