@@ -24,7 +24,7 @@ The `search` capability is the first-class backend boundary. Its public HTTP con
 
 ## Current system view
 
-Source diagram: `architecture/system-overview.mmd`; exported preview: [`architecture/system-overview.svg`](../architecture/system-overview.svg).
+Source diagram: `architecture/system-overview.mmd`; exported preview: [`architecture/system-overview.svg`](architecture/system-overview.svg).
 
 ```text
 Challenge operator

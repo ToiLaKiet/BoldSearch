@@ -108,8 +108,7 @@ The backend also serves `/keyframes` and `/map-keyframes` from the configured lo
 ├── app/
 │   ├── backend/              # FastAPI API, FG-CLIP adapter, Milvus access, and evaluation runner
 │   └── frontend/             # Vite React operator interface
-├── architecture/             # system diagrams
-├── docs/                     # architecture, operational guides, and competition knowledge
+├── docs/                     # architecture, diagrams, operational guides, and competition knowledge
 ├── data/                     # ignored local media and evaluation artifacts
 ├── GIT_CONVENTION.md         # branch and commit rules
 ├── PROGRESS.md               # implementation history and team handoff
