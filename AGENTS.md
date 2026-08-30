@@ -10,8 +10,8 @@
 ## Setup And Verification
 
 ```bash
-cd app/backend && uv sync --locked --group dev
-cd app/frontend && npm ci
+(cd app/backend && uv sync --locked --group dev)
+(cd app/frontend && npm ci)
 ```
 
 - Backend: `cd app/backend && uv run python main.py` starts the API on the configured port (8000 by default). Full tests: `uv run pytest`; focused evaluation tests: `uv run pytest tests/evaluation -q`.
