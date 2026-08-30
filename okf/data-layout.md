@@ -21,6 +21,10 @@ The boundary is: **per-machine corpus and generated artifacts → ignored `data/
 | Location | Tracked | Content | Consumer |
 | --- | --- | --- | --- |
 | `data/keyframes/`, `data/map-keyframes/`, evaluation artifacts | No (ignored) | Per-machine corpus, ~29 GB | FastAPI static mounts at `/keyframes`, `/map-keyframes` |
+| `data/aic2026-downloads/` | No | Raw BTC-provided packages (keyframes, metadata) | Manual extraction source |
+| `data/aic2026-p2/` | No | Round-2 working area: submission ZIPs and local scripts | Manual submission workflow |
+| `data/{frames,metadata,vectors}/<video_id>/` | No | Per-video derived artifacts (extracted frames, metadata, embeddings) | Local pipelines |
+| `data/csv/` | No | Currently empty scratch | — |
 | `app/backend/detections.csv` | Yes | Object-detection metadata, 168 KB | Backend via `OBJECTS_CSV_PATH` |
 | `app/frontend/public/Frames.csv` | Yes | Frame lookup table, 1.7 MB | Browser `fetch('/Frames.csv')` |
 
@@ -29,6 +33,7 @@ The boundary is: **per-machine corpus and generated artifacts → ignored `data/
 1. Never move the corpus into Vite `public/` or `dist`; it must not enter the frontend bundle or git.[^agents-md]
 2. Never track corpus binaries or generated artifacts in git; `data/` is the landing layout on every machine.
 3. Small metadata CSVs stay tracked so a fresh clone runs immediately; moving them into ignored `data/` would break clone-and-run for every teammate.
+4. Scripts must not live in `data/` long-term: git ignores it, so submission/pipeline scripts there are invisible to teammates and history. Move them into the tracked tree (e.g. `scripts/`) once they are load-bearing.
 
 ## Why not "unify" everything into `data/`
 
