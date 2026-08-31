@@ -12,7 +12,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app_config import app_config
 from connections import close_connections, init_milvus
-from encoders.loader import load_fg_clip_encoder
+from encoders.loader import load_fg_clip_encoder, load_beit3_encoder
 from search.object_index import load_object_index
 
 from search.router import router as search_router
@@ -29,8 +29,8 @@ async def lifespan(app: FastAPI):
     app.state.milvus_client = init_milvus(app_config)
     print(f"Connected to Zilliz at {app_config.ZILLIZ_URI}.")
     app.state.embedding_encoder = (
-        load_fg_clip_encoder(app_config.FG_CLIP_DEVICE or None, app_config.HF_TOKEN)
-        if app_config.LOAD_FG_CLIP_ON_STARTUP
+        load_beit3_encoder(app_config.BEIT3_DEVICE or None, app_config.HF_TOKEN)
+        if app_config.LOAD_BEIT3_ON_STARTUP
         else None
     )
     try:

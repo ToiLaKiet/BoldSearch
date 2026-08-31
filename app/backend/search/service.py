@@ -17,21 +17,77 @@ from search import schema
 from search.object_index import FrameObjectIndex, object_doc_for_row
 
 
-def translate_to_english(text: str) -> str:
-    """Translate *text* to English via Google Translate (deep-translator).
+_argos_installed: set[tuple[str, str]] = set()  # cache of (from_code, to_code) pairs
 
-    Returns the original text unchanged if translation fails (network
-    issue, rate-limit, unsupported language, etc.).
-    """
+
+def _ensure_argos_package(from_code: str, to_code: str) -> None:
+    """Download & install the argostranslate language package if not already available."""
+    pair = (from_code, to_code)
+    if pair in _argos_installed:
+        return
+
+    import argostranslate.package
+
+    argostranslate.package.update_package_index()
+    available = argostranslate.package.get_available_packages()
+    pkg = next(
+        (p for p in available if p.from_code == from_code and p.to_code == to_code),
+        None,
+    )
+    if pkg is None:
+        raise RuntimeError(f"No argostranslate package found for {from_code} → {to_code}")
+
+    argostranslate.package.install_from_path(pkg.download())
+    _argos_installed.add(pair)
+
+
+import os
+from functools import lru_cache
+
+import requests
+
+AZURE_TRANSLATOR_URL = (
+    "https://api.cognitive.microsofttranslator.com/translate"
+)
+
+
+@lru_cache(maxsize=10_000)
+def translate_to_english(text: str) -> str:
+    text = text.strip()
+
+    if not text:
+        return text
+
     try:
-        from deep_translator import GoogleTranslator  # lazy import
-        translated = GoogleTranslator(source="auto", target="en").translate(text)
-        if translated:
-            print(f"[translate] '{text}' -> '{translated}'")
-            return translated.strip()
-    except Exception as exc:  # noqa: BLE001
-        print(f"[translate] failed ({exc}), using original text")
-    return text
+        response = requests.post(
+            AZURE_TRANSLATOR_URL,
+            params={
+                "api-version": "3.0",
+                "from": "vi",
+                "to": "en",
+            },
+            headers={
+                "Ocp-Apim-Subscription-Key":
+                    os.environ["AZURE_TRANSLATOR_KEY"],
+                "Ocp-Apim-Subscription-Region":
+                    os.environ["AZURE_TRANSLATOR_REGION"],
+                "Content-Type": "application/json",
+            },
+            json=[{"text": text}],
+            timeout=15,
+        )
+
+        response.raise_for_status()
+
+        translated = response.json()[0]["translations"][0]["text"]
+        translated = translated.strip()
+
+        print(f"[translate] '{text}' -> '{translated}'")
+        return translated
+
+    except Exception as exc:
+        print(f"[translate] failed: {exc}")
+        return text
 
 
 def temporal_search(
@@ -118,7 +174,7 @@ def run_text_query(
 ) -> schema.SearchResponse:
 
     object_queries = _object_queries(body.objectQueries, body.objects)
-    print(object_queries)
+    print('objects:', object_queries)
     text_queries = _text_queries(body)
     response_query = _query_text(body, object_queries)
 
@@ -185,7 +241,7 @@ def _encode_text_query(embedding_encoder: Any, query_text: str) -> List[float]:
     if not query_text:
         raise ValueError("query text or object query is required")
     if embedding_encoder is None:
-        raise RuntimeError("FG-CLIP encoder is not loaded")
+        raise RuntimeError("embedding encoder is not loaded")
 
     english_text = translate_to_english(query_text)
     embeddings = embedding_encoder.encode_texts([english_text])
@@ -201,7 +257,7 @@ def _visual_embedding(
         return _embedding_to_list(existing)
 
     if embedding_encoder is None:
-        raise RuntimeError("FG-CLIP encoder is not loaded")
+        raise RuntimeError("embedding encoder is not loaded")
 
     image = _image_from_cue(body.imageCue)
     
@@ -333,83 +389,26 @@ def _hybrid_search(
     except ImportError as exc:
         raise RuntimeError("pymilvus is required for Zilliz hybrid search") from exc
 
-    reqs = []
-    # if query_text:
-
-    #     ocr_req = AnnSearchRequest(
-    #         data=[query_text],
-    #         anns_field="ocr_sparse",
-    #         param={
-    #             "metric_type": "BM25",
-    #             "params": {
-    #                 "inverted_index_algo": "DAAT_MAXSCORE",
-    #                 "bm25_k1": 1.8,
-    #                 "bm25_b": 0.75
-    #             }
-    #         },
-    #         limit=top_k,    
-    #         expr=expr,
-    #     )
-    #     reqs.append(ocr_req)
-
-
-    #     asr_req = AnnSearchRequest(
-    #         data=[query_text],
-    #         anns_field="asr_sparse",
-    #         param={
-    #             "metric_type": "BM25",
-    #             "params": {
-    #                 "inverted_index_algo": "DAAT_MAXSCORE",
-    #                 "bm25_k1": 1.8,
-    #                 "bm25_b": 0.75
-    #             }
-    #         },
-    #         limit=top_k,
-    #         expr=expr,
-    #     )
-    #     reqs.append(asr_req)
-        
     if query_embedding is None:
-        raise NotImplementedError("visual search is not yet implemented")
-    
-    visual_req = AnnSearchRequest(
-                    data=[query_embedding],
-                    anns_field="visual_embedding",
-                    param={
-                            "metric_type": "COSINE",
-                            "params": {},
-                        },
-                    limit=top_k,
-                    expr=expr,
-                )
-    reqs.append(visual_req)
+        raise ValueError("query_embedding is required")
 
-    captioning_req = AnnSearchRequest(
+    # Tất cả query (text và visual) đều search trong visual_embedding.
+    # BEiT-3 retrieval maps text and image embeddings into the same space.
+    # caption_embedding hiện tại chứa vector 0 (chưa index) → tạm thời không dùng.
+    visual_req = AnnSearchRequest(
         data=[query_embedding],
-        anns_field="caption_embedding",
-        param={
-            "metric_type": "COSINE",
-            "params": {},
-        },
+        anns_field="visual_embedding",
+        param={"metric_type": "COSINE", "params": {}},
         limit=top_k,
         expr=expr,
     )
-    reqs.append(captioning_req)
-    
-    # Check ocr,asr,visual query
-    print(f"Hybrid search with {len(reqs)}" )
-    # if not query_text:
-    #     req_weights = [1.0]
-    # else:
-    req_weights = _ranker_weights(config, len(reqs))
-    print(req_weights)
-    if not reqs:
-        raise ValueError("query text or query embedding is required")
+
+    print(f"Search visual_embedding: text={query_text is not None}, visual={query_embedding is not None}")
 
     raw = client.hybrid_search(
         collection_name=config.MILVUS_COLLECTION,
-        reqs=reqs,
-        ranker=WeightedRanker(*req_weights),
+        reqs=[visual_req],
+        ranker=WeightedRanker(1.0),
         limit=top_k,
         output_fields=_csv_list(config.MILVUS_OUTPUT_FIELDS),
     )
@@ -974,7 +973,7 @@ def _ranker_weights(config: AppConfig, count: int) -> List[float]:
         weights = [1.0]
     while len(weights) < count:
         weights.append(weights[-1])
-    return weights[:count]
+    return [1,0]
 
 
 def _csv_list(value: str) -> List[str]:

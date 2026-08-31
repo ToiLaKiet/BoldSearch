@@ -5,3 +5,4 @@ frontend/.npm-cache/
 frontend/dist/
 frontend/node_modules/
 zilliz-cloud-AIC2026-username-password.txt
+*.png

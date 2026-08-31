@@ -18,7 +18,7 @@ The API is intentionally thin:
    - `objectQueries`
    - `minConfidence`
    - `topK`
-2. Cached FG-CLIP creates dense embeddings for text or image queries.
+2. Cached BEiT-3 creates dense 768-dimensional embeddings for text or image queries.
 3. `search.service` calls `MilvusClient.hybrid_search`.
 4. Milvus/Zilliz returns frame rows in `data`.
 5. Backend looks up detection metadata for each returned frame in `detections.csv`.
@@ -34,7 +34,7 @@ Provide these values through environment variables or an ignored local `.env` fi
 - `OBJECTS_CSV_PATH`
 - `FG_CLIP_DEVICE` optionally forces `cpu`, `cuda`, or `mps`
 
-`main.py` initializes Zilliz/Milvus, the object CSV index, and FG-CLIP once during FastAPI lifespan startup, then stores them in `app.state` for request handlers.
+`main.py` initializes Zilliz/Milvus, the object CSV index, and BEiT-3 once during FastAPI lifespan startup, then stores them in `app.state` for request handlers.
 
 `OBJECTS_CSV_PATH` can be absolute or relative to `app/backend`. The CSV must use this schema:
 

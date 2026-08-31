@@ -31,13 +31,15 @@ class AppConfig(BaseSettings):
     )
     MILVUS_TEXT_SEARCH_PARAMS: str = '{"metric_type":"BM25"}'
     MILVUS_VECTOR_SEARCH_PARAMS: str = '{"metric_type":"IP","params":{"nprobe":10}}'
-    MILVUS_RANKER_WEIGHTS: str = "0.5,0.5"
+    MILVUS_RANKER_WEIGHTS: str = "0,1"
     SEARCH_TOP_K: int = 3000
 
     # ── Embedding encoder ─────────────────────────────────────────
     LOAD_FG_CLIP_ON_STARTUP: bool = True
     FG_CLIP_DEVICE: str = "mps"
     HF_TOKEN: str = "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"
+    LOAD_BEIT3_ON_STARTUP: bool = True
+    BEIT3_DEVICE: str = "mps"
 
     # ── Object detection metadata ───────────────────────────────
     OBJECTS_CSV_PATH: str = "detections.csv"

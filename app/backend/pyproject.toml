@@ -4,7 +4,7 @@ version = "0.2.0"
 description = "Interactive video shot retrieval system for the HCM AI Challenge."
 requires-python = ">=3.12"
 dependencies = [
-    "deep-translator>=1.11.4",
+    "argostranslate>=1.9.0",
     "einops>=0.8.2",
     "fastapi==0.115.12",
     "numpy>=1.24.0",
@@ -12,7 +12,9 @@ dependencies = [
     "pydantic==2.13.4",
     "pydantic-settings==2.7.0",
     "pymilvus>=2.5.0",
+    "sentencepiece>=0.2.0",
     "torch>=2.0.0",
+    "torchscale>=0.3.0",
     "torchvision>=0.15.0",
     "transformers>=4.57.0,<5.0.0",
     "uvicorn[standard]==0.34.3",

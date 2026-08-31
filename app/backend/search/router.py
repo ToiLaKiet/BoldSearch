@@ -34,7 +34,7 @@ async def query(body: schema.QueryRequest, request: Request):
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except RuntimeError as exc:
-        logger.exception("Failed to load FG-CLIP")
+        logger.exception("Failed to use embedding encoder")
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
 
