@@ -19,8 +19,8 @@ jobs:
       # kaggle CLI >= 1.8 auth via KGAT token; KAGGLE_USERNAME stays for slug composition
       KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_KEY }}
       ENV_DATASET_SLUG: boldsearch-runtime-secrets
-      KERNEL_SLUG: boldsearch-kaggle
-      KERNEL_ID: ${{ secrets.KAGGLE_USERNAME }}/boldsearch-kaggle
+      KERNEL_SLUG: boldsearch-dev
+      KERNEL_ID: ${{ secrets.KAGGLE_USERNAME }}/boldsearch-dev
       READY_MINUTES: 30
     steps:
       - uses: actions/checkout@v4
@@ -63,25 +63,29 @@ jobs:
           sed -i "s/KAGGLE_USERNAME/${KAGGLE_USERNAME}/g; s/RUNTIME_DATASET_SLUG/${ENV_DATASET_SLUG}/g" deploy/kaggle/kernel-metadata.json
           kaggle kernels push -p deploy/kaggle
 
-      - name: Wait for bootstrap and write deploy report
+      - name: Wait for live container and write deploy report
         env:
           KAGGLE_CONFIG_DIR: ${{ runner.temp }}/kaggle-config
+          LIVE_MINUTES: 10
         run: |
+          # keep-alive run never completes and kaggle CLI only exposes logs after
+          # the run ends, so success = RUNNING past the cold-start window (uv sync
+          # + model load ~10 min; bootstrap failures surface as ERROR before that)
           start=$SECONDS
           status="running"
-          ready=0
           for _ in $(seq $((READY_MINUTES * 3))); do
             raw=$(kaggle kernels status "$KERNEL_ID" 2>&1 || true)
             if echo "$raw" | grep -qiE 'error|cancel'; then status="error"; break; fi
-            if echo "$raw" | grep -qi 'complete'; then status="complete"; break; fi
-            logs=$(kaggle kernels logs "$KERNEL_ID" 2>&1 || true)
-            printf '%s\n' "$logs" > deploy/kaggle/kaggle-kernel.log
-            if echo "$logs" | grep -q 'BOOTSTRAP DONE'; then ready=1; break; fi
+            if [ $((SECONDS - start)) -ge $((LIVE_MINUTES * 60)) ]; then
+              logs=$(kaggle kernels logs "$KERNEL_ID" 2>&1 || true)
+              printf '%s\n' "$logs" > deploy/kaggle/kaggle-kernel.log
+              break
+            fi
             sleep 20
           done
           duration=$((SECONDS - start))
           ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-          if [ "$ready" = 1 ] || [ "$status" = "complete" ]; then exit_code=0; else exit_code=1; fi
+          if [ "$status" != "error" ]; then exit_code=0; else exit_code=1; fi
           cat > deploy-report.md <<REPORT
           # BoldSearch Kaggle deploy report
 
@@ -92,8 +96,8 @@ jobs:
           | Pinned SHA | \`$PINNED_SHA\` |
           | Push | \`ok\` |
           | Kernel status | \`$status\` |
-          | Bootstrap | \`$([ "$ready" = 1 ] && echo done || echo pending)\` |
-          | Next | attach editor tại kaggle.com -> panel Kaggle Jupyter Server -> VSCode Compatible URL |
+          | Container | \`$([ "$status" != "error" ] && echo live || echo dead)\` |
+          | Next | kaggle.com/code/\`$KERNEL_SLUG\` -> session output xem BOOTSTRAP DONE -> panel Kaggle Jupyter Server -> VSCode Compatible URL |
           | Duration | \`$(printf '%dm%02ds' $((duration / 60)) $((duration % 60)))\` |
           REPORT
           sed -i 's/^          //' deploy-report.md

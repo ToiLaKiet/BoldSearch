@@ -1,5 +1,5 @@
 {
-  "id": "KAGGLE_USERNAME/boldsearch-kaggle",
+  "id": "KAGGLE_USERNAME/boldsearch-dev",
   "title": "BoldSearch dev",
   "code_file": "kaggle_wrapper.ipynb",
   "language": "python",
@@ -7,6 +7,7 @@
   "is_private": true,
   "enable_gpu": true,
   "enable_internet": true,
+  "machine_shape": "NvidiaTeslaT4",
   "dataset_sources": [
     "KAGGLE_USERNAME/RUNTIME_DATASET_SLUG"
   ]
