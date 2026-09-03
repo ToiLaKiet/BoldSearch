@@ -17,12 +17,18 @@ class DeployKaggle(BaseModel):
     into the private env dataset -> the wrapper notebook copies that dataset
     to `backend/.env` -> pydantic validates everything here. Deploys always
     track `main`.
+    Tunnel keys are deploy-only: the wrapper reads them after cloning and
+    exports CF_TUNNEL_TOKEN as the TUNNEL_TOKEN env for cloudflared.
     """
 
     REPO_URL: str = "https://github.com/ToiLaKiet/BoldSearch.git"
     SMOKE_QUERY: str = "person"
     FRONTEND_PORT: int = 5173
     GH_PAT: str = ""  # fine-grained contents:read; used by the wrapper to clone
+    # nested env vars need the DEPLOY_KAGGLE__ prefix in .env (env_nested_delimiter="__");
+    # flat CF_TUNNEL_TOKEN=... is silently ignored by extra="ignore"
+    CF_TUNNEL_TOKEN: str = ""  # cloudflared named tunnel; wrapper exports it as TUNNEL_TOKEN
+    CF_TUNNEL_HOSTNAME: str = ""  # public hostname routed in CF dashboard to 127.0.0.1:8000
 
 
 class AppConfig(BaseSettings):

@@ -24,6 +24,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Check Kaggle credentials
+        run: |
+          test -n "$KAGGLE_USERNAME" || { echo "missing secret KAGGLE_USERNAME (kaggle.com -> Settings -> API)"; exit 1; }
+          test -n "$KAGGLE_KEY" || { echo "missing secret KAGGLE_KEY (kaggle.com -> Settings -> API -> Create New Token)"; exit 1; }
+
       - name: Resolve pinned SHA
         run: echo "PINNED_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
 
@@ -54,24 +59,23 @@ jobs:
           sed -i "s/KAGGLE_USERNAME/${KAGGLE_USERNAME}/g; s/RUNTIME_DATASET_SLUG/${ENV_DATASET_SLUG}/g" deploy/kaggle/kernel-metadata.json
           kaggle kernels push -p deploy/kaggle
 
-      - name: Wait for live session and write deploy report
+      - name: Wait for bootstrap and write deploy report
         run: |
           start=$SECONDS
           status="running"
-          url=""
+          ready=0
           for _ in $(seq $((READY_MINUTES * 3))); do
             raw=$(kaggle kernels status "$KERNEL_ID" 2>&1 || true)
             if echo "$raw" | grep -qiE 'error|cancel'; then status="error"; break; fi
             if echo "$raw" | grep -qi 'complete'; then status="complete"; break; fi
             logs=$(kaggle kernels logs "$KERNEL_ID" 2>&1 || true)
             printf '%s\n' "$logs" > deploy/kaggle/kaggle-kernel.log
-            url=$(echo "$logs" | grep -o 'TUNNEL_URL=[^ ]*' | head -1 | cut -d= -f2-)
-            if [ -n "$url" ]; then break; fi
+            if echo "$logs" | grep -q 'BOOTSTRAP DONE'; then ready=1; break; fi
             sleep 20
           done
           duration=$((SECONDS - start))
           ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-          if [ -n "$url" ]; then exit_code=0; else exit_code=1; fi
+          if [ "$ready" = 1 ] || [ "$status" = "complete" ]; then exit_code=0; else exit_code=1; fi
           cat > deploy-report.md <<REPORT
           # BoldSearch Kaggle deploy report
 
@@ -82,7 +86,8 @@ jobs:
           | Pinned SHA | \`$PINNED_SHA\` |
           | Push | \`ok\` |
           | Kernel status | \`$status\` |
-          | Public URL | \`${url:--}\` |
+          | Bootstrap | \`$([ "$ready" = 1 ] && echo done || echo pending)\` |
+          | Next | attach editor tại kaggle.com -> panel Kaggle Jupyter Server -> VSCode Compatible URL |
           | Duration | \`$(printf '%dm%02ds' $((duration / 60)) $((duration % 60)))\` |
           REPORT
           sed -i 's/^          //' deploy-report.md
