@@ -16,6 +16,8 @@ jobs:
     env:
       KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
       KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
+      # kaggle CLI >= 1.8 auth via KGAT token; KAGGLE_USERNAME stays for slug composition
+      KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_KEY }}
       ENV_DATASET_SLUG: boldsearch-runtime-secrets
       KERNEL_SLUG: boldsearch-kaggle
       KERNEL_ID: ${{ secrets.KAGGLE_USERNAME }}/boldsearch-kaggle
