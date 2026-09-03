@@ -16,7 +16,6 @@ jobs:
     env:
       KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
       KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
-      KAGGLE_CONFIG_DIR: ${{ runner.temp }}/kaggle-config
       ENV_DATASET_SLUG: boldsearch-runtime-secrets
       KERNEL_SLUG: boldsearch-kaggle
       KERNEL_ID: ${{ secrets.KAGGLE_USERNAME }}/boldsearch-kaggle
@@ -39,6 +38,7 @@ jobs:
         env:
           KAGGLE_RUNTIME_ENV: ${{ secrets.KAGGLE_RUNTIME_ENV }}
           REPO_URL: ${{ github.server_url }}/${{ github.repository }}.git
+          KAGGLE_CONFIG_DIR: ${{ runner.temp }}/kaggle-config
         run: |
           test -n "$KAGGLE_RUNTIME_ENV" || { echo "missing secret KAGGLE_RUNTIME_ENV (verbatim app/backend/.env plus a GH_PAT=... line)"; exit 1; }
           dir="$RUNNER_TEMP/env-dataset"
@@ -55,11 +55,15 @@ jobs:
           echo "ENV_DATASET=published dataset=$KAGGLE_USERNAME/$ENV_DATASET_SLUG"
 
       - name: Push kernel
+        env:
+          KAGGLE_CONFIG_DIR: ${{ runner.temp }}/kaggle-config
         run: |
           sed -i "s/KAGGLE_USERNAME/${KAGGLE_USERNAME}/g; s/RUNTIME_DATASET_SLUG/${ENV_DATASET_SLUG}/g" deploy/kaggle/kernel-metadata.json
           kaggle kernels push -p deploy/kaggle
 
       - name: Wait for bootstrap and write deploy report
+        env:
+          KAGGLE_CONFIG_DIR: ${{ runner.temp }}/kaggle-config
         run: |
           start=$SECONDS
           status="running"
