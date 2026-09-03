@@ -16,11 +16,10 @@ jobs:
     env:
       KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
       KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
-      # kaggle CLI >= 1.8 auth via KGAT token; KAGGLE_USERNAME stays for slug composition
-      KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_KEY }}
+      KAGGLE_CONFIG_DIR: ${{ runner.temp }}/kaggle-config
       ENV_DATASET_SLUG: boldsearch-runtime-secrets
-      KERNEL_SLUG: boldsearch-dev
-      KERNEL_ID: ${{ secrets.KAGGLE_USERNAME }}/boldsearch-dev
+      KERNEL_SLUG: boldsearch-kaggle
+      KERNEL_ID: ${{ secrets.KAGGLE_USERNAME }}/boldsearch-kaggle
       READY_MINUTES: 30
     steps:
       - uses: actions/checkout@v4
@@ -40,7 +39,6 @@ jobs:
         env:
           KAGGLE_RUNTIME_ENV: ${{ secrets.KAGGLE_RUNTIME_ENV }}
           REPO_URL: ${{ github.server_url }}/${{ github.repository }}.git
-          KAGGLE_CONFIG_DIR: ${{ runner.temp }}/kaggle-config
         run: |
           test -n "$KAGGLE_RUNTIME_ENV" || { echo "missing secret KAGGLE_RUNTIME_ENV (verbatim app/backend/.env plus a GH_PAT=... line)"; exit 1; }
           dir="$RUNNER_TEMP/env-dataset"
@@ -57,30 +55,27 @@ jobs:
           echo "ENV_DATASET=published dataset=$KAGGLE_USERNAME/$ENV_DATASET_SLUG"
 
       - name: Push kernel
-        env:
-          KAGGLE_CONFIG_DIR: ${{ runner.temp }}/kaggle-config
         run: |
           sed -i "s/KAGGLE_USERNAME/${KAGGLE_USERNAME}/g; s/RUNTIME_DATASET_SLUG/${ENV_DATASET_SLUG}/g" deploy/kaggle/kernel-metadata.json
           kaggle kernels push -p deploy/kaggle
 
-      - name: Wait for live container and write deploy report
-        env:
-          KAGGLE_CONFIG_DIR: ${{ runner.temp }}/kaggle-config
+      - name: Wait for bootstrap and write deploy report
         run: |
-          # container is live once the kernel reports RUNNING; bootstrap errors
-          # surface as ERROR on the kernel itself (visible on the session page),
-          # not in this job - this job only proves the container was allocated
           start=$SECONDS
-          status="queued"
+          status="running"
+          ready=0
           for _ in $(seq $((READY_MINUTES * 3))); do
             raw=$(kaggle kernels status "$KERNEL_ID" 2>&1 || true)
             if echo "$raw" | grep -qiE 'error|cancel'; then status="error"; break; fi
-            if echo "$raw" | grep -qi 'running'; then status="running"; break; fi
+            if echo "$raw" | grep -qi 'complete'; then status="complete"; break; fi
+            logs=$(kaggle kernels logs "$KERNEL_ID" 2>&1 || true)
+            printf '%s\n' "$logs" > deploy/kaggle/kaggle-kernel.log
+            if echo "$logs" | grep -q 'BOOTSTRAP DONE'; then ready=1; break; fi
             sleep 20
           done
           duration=$((SECONDS - start))
           ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-          if [ "$status" = "running" ]; then exit_code=0; else exit_code=1; fi
+          if [ "$ready" = 1 ] || [ "$status" = "complete" ]; then exit_code=0; else exit_code=1; fi
           cat > deploy-report.md <<REPORT
           # BoldSearch Kaggle deploy report
 
@@ -90,8 +85,9 @@ jobs:
           | Kernel | \`$KERNEL_ID\` |
           | Pinned SHA | \`$PINNED_SHA\` |
           | Push | \`ok\` |
-          | Container | \`$status\` |
-          | Next | kaggle.com/code/\`$KERNEL_SLUG\` -> session output xem BOOTSTRAP DONE -> panel Kaggle Jupyter Server -> VSCode Compatible URL |
+          | Kernel status | \`$status\` |
+          | Bootstrap | \`$([ "$ready" = 1 ] && echo done || echo pending)\` |
+          | Next | attach editor tại kaggle.com -> panel Kaggle Jupyter Server -> VSCode Compatible URL |
           | Duration | \`$(printf '%dm%02ds' $((duration / 60)) $((duration % 60)))\` |
           REPORT
           sed -i 's/^          //' deploy-report.md
