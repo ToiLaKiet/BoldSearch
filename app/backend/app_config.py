@@ -2,12 +2,27 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from pydantic import field_validator, model_validator
+from pydantic import BaseModel, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 ENV_FILE = Path(__file__).resolve().with_name(".env")
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_DATA_DIR = PROJECT_ROOT / "data"
+
+
+class DeployKaggle(BaseModel):
+    """Kaggle deployment flow settings (deploy/kaggle wrapper + CI).
+
+    Values flow: repo defaults -> CI injects REPO_URL from the GitHub context
+    into the private env dataset -> the wrapper notebook copies that dataset
+    to `backend/.env` -> pydantic validates everything here. Deploys always
+    track `main`.
+    """
+
+    REPO_URL: str = "https://github.com/ToiLaKiet/BoldSearch.git"
+    SMOKE_QUERY: str = "person"
+    FRONTEND_PORT: int = 5173
+    GH_PAT: str = ""  # fine-grained contents:read; used by the wrapper to clone
 
 
 class AppConfig(BaseSettings):
@@ -59,10 +74,14 @@ class AppConfig(BaseSettings):
     FRAME_IMAGE_URL_TEMPLATE: str = ""
     INCLUDE_EMBEDDING_IN_RESPONSE: bool = False
 
+    # ── Kaggle deployment (deploy/kaggle) ─────────────────────────
+    DEPLOY_KAGGLE: DeployKaggle = DeployKaggle()
+
     model_config = SettingsConfigDict(
         env_file=ENV_FILE,
         env_file_encoding="utf-8",
         extra="ignore",
+        env_nested_delimiter="__",
     )
 
     @field_validator(

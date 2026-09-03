@@ -1,0 +1,10 @@
+{
+  "id": "KAGGLE_USERNAME/RUNTIME_DATASET_SLUG",
+  "title": "BoldSearch runtime environment",
+  "description": "Private runtime config + secrets for the BoldSearch Kaggle kernel.",
+  "licenses": [
+    {
+      "name": "CC0-1.0"
+    }
+  ]
+}

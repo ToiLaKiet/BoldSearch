@@ -1,0 +1,104 @@
+name: Deploy Kaggle
+
+on:
+  workflow_dispatch: null
+
+concurrency:
+  group: kaggle-deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
+      KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
+      KAGGLE_CONFIG_DIR: ${{ runner.temp }}/kaggle-config
+      ENV_DATASET_SLUG: boldsearch-runtime-secrets
+      KERNEL_SLUG: boldsearch-kaggle
+      KERNEL_ID: ${{ secrets.KAGGLE_USERNAME }}/boldsearch-kaggle
+      READY_MINUTES: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve pinned SHA
+        run: echo "PINNED_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+
+      - name: Install kaggle CLI
+        run: python -m pip install --quiet kaggle
+
+      - name: Publish env dataset
+        env:
+          KAGGLE_RUNTIME_ENV: ${{ secrets.KAGGLE_RUNTIME_ENV }}
+          REPO_URL: ${{ github.server_url }}/${{ github.repository }}.git
+        run: |
+          test -n "$KAGGLE_RUNTIME_ENV" || { echo "missing secret KAGGLE_RUNTIME_ENV (verbatim app/backend/.env plus a GH_PAT=... line)"; exit 1; }
+          dir="$RUNNER_TEMP/env-dataset"
+          mkdir -p "$dir"
+          printf '%s\n' "$KAGGLE_RUNTIME_ENV" > "$dir/.env"
+          printf 'REPO_URL=%s\n' "$REPO_URL" >> "$dir/.env"
+          sed -e "s/KAGGLE_USERNAME/${KAGGLE_USERNAME}/g" -e "s/RUNTIME_DATASET_SLUG/${ENV_DATASET_SLUG}/g" \
+            deploy/kaggle/dataset-metadata.json > "$dir/dataset-metadata.json"
+          if kaggle datasets status "$KAGGLE_USERNAME/$ENV_DATASET_SLUG" > /dev/null 2>&1; then
+            kaggle datasets version -p "$dir" --dir-mode zip -m "update runtime env"
+          else
+            kaggle datasets create -p "$dir" --dir-mode zip
+          fi
+          echo "ENV_DATASET=published dataset=$KAGGLE_USERNAME/$ENV_DATASET_SLUG"
+
+      - name: Push kernel
+        run: |
+          sed -i "s/KAGGLE_USERNAME/${KAGGLE_USERNAME}/g; s/RUNTIME_DATASET_SLUG/${ENV_DATASET_SLUG}/g" deploy/kaggle/kernel-metadata.json
+          kaggle kernels push -p deploy/kaggle
+
+      - name: Wait for live session and write deploy report
+        run: |
+          start=$SECONDS
+          status="running"
+          smoke="unknown"
+          url=""
+          for _ in $(seq $((READY_MINUTES * 3))); do
+            raw=$(kaggle kernels status "$KERNEL_ID" 2>&1 || true)
+            if echo "$raw" | grep -qiE 'error|cancel'; then status="error"; break; fi
+            if echo "$raw" | grep -qi 'complete'; then status="complete"; break; fi
+            logs=$(kaggle kernels logs "$KERNEL_ID" 2>&1 || true)
+            printf '%s\n' "$logs" > deploy/kaggle/kaggle-kernel.log
+            echo "$logs" | grep -q 'SMOKE=passed' && smoke="passed"
+            url=$(echo "$logs" | grep -o 'TUNNEL_URL=[^ ]*' | head -1 | cut -d= -f2-)
+            if [ "$smoke" = "passed" ] && [ -n "$url" ]; then break; fi
+            sleep 20
+          done
+          duration=$((SECONDS - start))
+          ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          if [ "$smoke" = "passed" ] && [ -n "$url" ]; then exit_code=0; else exit_code=1; fi
+          cat > deploy-report.md <<REPORT
+          # BoldSearch Kaggle deploy report
+
+          | Field | Value |
+          |---|---|
+          | Timestamp (UTC) | \`$ts\` |
+          | Kernel | \`$KERNEL_ID\` |
+          | Pinned SHA | \`$PINNED_SHA\` |
+          | Push | \`ok\` |
+          | Kernel status | \`$status\` |
+          | Smoke | \`$smoke\` |
+          | Public URL | \`${url:--}\` |
+          | Duration | \`$(printf '%dm%02ds' $((duration / 60)) $((duration % 60)))\` |
+          REPORT
+          sed -i 's/^          //' deploy-report.md
+          cat deploy-report.md
+          cat deploy-report.md >> "$GITHUB_STEP_SUMMARY"
+          exit $exit_code
+
+      - name: Upload deploy report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kaggle-deploy-report
+          path: |
+            deploy-report.md
+            deploy/kaggle/kaggle-kernel.log
+          if-no-files-found: warn
