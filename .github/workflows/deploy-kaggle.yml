@@ -66,26 +66,21 @@ jobs:
       - name: Wait for live container and write deploy report
         env:
           KAGGLE_CONFIG_DIR: ${{ runner.temp }}/kaggle-config
-          LIVE_MINUTES: 10
         run: |
-          # keep-alive run never completes and kaggle CLI only exposes logs after
-          # the run ends, so success = RUNNING past the cold-start window (uv sync
-          # + model load ~10 min; bootstrap failures surface as ERROR before that)
+          # container is live once the kernel reports RUNNING; bootstrap errors
+          # surface as ERROR on the kernel itself (visible on the session page),
+          # not in this job - this job only proves the container was allocated
           start=$SECONDS
-          status="running"
+          status="queued"
           for _ in $(seq $((READY_MINUTES * 3))); do
             raw=$(kaggle kernels status "$KERNEL_ID" 2>&1 || true)
             if echo "$raw" | grep -qiE 'error|cancel'; then status="error"; break; fi
-            if [ $((SECONDS - start)) -ge $((LIVE_MINUTES * 60)) ]; then
-              logs=$(kaggle kernels logs "$KERNEL_ID" 2>&1 || true)
-              printf '%s\n' "$logs" > deploy/kaggle/kaggle-kernel.log
-              break
-            fi
+            if echo "$raw" | grep -qi 'running'; then status="running"; break; fi
             sleep 20
           done
           duration=$((SECONDS - start))
           ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-          if [ "$status" != "error" ]; then exit_code=0; else exit_code=1; fi
+          if [ "$status" = "running" ]; then exit_code=0; else exit_code=1; fi
           cat > deploy-report.md <<REPORT
           # BoldSearch Kaggle deploy report
 
@@ -95,8 +90,7 @@ jobs:
           | Kernel | \`$KERNEL_ID\` |
           | Pinned SHA | \`$PINNED_SHA\` |
           | Push | \`ok\` |
-          | Kernel status | \`$status\` |
-          | Container | \`$([ "$status" != "error" ] && echo live || echo dead)\` |
+          | Container | \`$status\` |
           | Next | kaggle.com/code/\`$KERNEL_SLUG\` -> session output xem BOOTSTRAP DONE -> panel Kaggle Jupyter Server -> VSCode Compatible URL |
           | Duration | \`$(printf '%dm%02ds' $((duration / 60)) $((duration % 60)))\` |
           REPORT
