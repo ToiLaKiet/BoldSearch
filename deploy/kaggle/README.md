@@ -1,24 +1,25 @@
-# Kaggle deploy pipeline
+# Kaggle dev machine
 
-Deploys the BoldSearch dev environment to Kaggle from GitHub Actions and
-verifies it with a batch run. Batch sessions are ephemeral; a long-lived dev
-session still needs a human to open the notebook and Run All (Kaggle has no
-API for interactive sessions).
+Kaggle is just the GPU box. The wrapper notebook only prepares it (clone repo,
+load the CI-published env, `uv sync`) and exposes **VS Code via a cloudflared
+URL + one-time password** — after that you work from your local machine:
+run the backend (`cd app/backend && uv run uvicorn main:app --host 127.0.0.1
+--port 8000`), the frontend dev server, tests, anything. No Python modules
+here on purpose.
 
 ## Components
 
 | File | Runs where | Purpose |
 |---|---|---|
-| `kaggle_wrapper.ipynb` | Kaggle | The only runtime piece, one concern per cell: hardware → input datasets → git pull → `.env` from dataset (+3 dynamic keys) → `AppConfig` (pydantic) validates → BE + FE + smoke → public tunnel, session stays alive |
+| `kaggle_wrapper.ipynb` | Kaggle | clone → copy dataset `.env` → `uv sync` → code-server + tunnel (markers: `TUNNEL_URL=` + password) |
 | `kernel-metadata.json` | CI | Kernel descriptor; placeholders filled by CI (`sed`) |
 | `dataset-metadata.json` | CI | Private env-dataset descriptor; CI pushes `.env` verbatim via plain `kaggle datasets create/version` CLI |
-| `deploy-kaggle.yml` | CI | Whole pipeline: publish env dataset → `kernels push` → wait for live session → `deploy-report.md` |
+| `deploy-kaggle.yml` | CI | Whole pipeline: publish env dataset → `kernels push` → wait for the VS Code URL → `deploy-report.md` |
 
-No Python modules here on purpose. The runtime env is the repo's own
-`app/backend/.env` stored verbatim as the `KAGGLE_RUNTIME_ENV` Actions secret —
-CI never re-validates it; `AppConfig` (pydantic) validates on Kaggle at import.
-The wrapper just copies it to `backend/.env`, so the secret must already carry
-the Kaggle paths, e.g.:
+The runtime env is the repo's own `app/backend/.env` stored verbatim as the
+`KAGGLE_RUNTIME_ENV` Actions secret — CI never re-validates it; `AppConfig`
+(pydantic) validates on Kaggle when the backend starts. The secret must
+already carry the Kaggle paths, e.g.:
 
 ```
 KEYFRAMES_DIR=/kaggle/input/<keyframes-dataset-slug>/keyframes
@@ -56,8 +57,8 @@ whole session (~30 GPU h/week budget).
 
 Actions → **Deploy Kaggle** → Run workflow. The job uploads the
 `kaggle-deploy-report` artifact (markdown table: timestamp, kernel, pinned
-SHA, push/kernel status, smoke, **public URL**, duration) and appends it to
-the job summary.
+SHA, status, **VS Code URL**, duration) and appends it to the job summary.
+Open that URL in a browser, enter the printed password, and work from there.
 
 ## Teardown
 

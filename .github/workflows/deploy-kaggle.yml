@@ -58,7 +58,6 @@ jobs:
         run: |
           start=$SECONDS
           status="running"
-          smoke="unknown"
           url=""
           for _ in $(seq $((READY_MINUTES * 3))); do
             raw=$(kaggle kernels status "$KERNEL_ID" 2>&1 || true)
@@ -66,14 +65,13 @@ jobs:
             if echo "$raw" | grep -qi 'complete'; then status="complete"; break; fi
             logs=$(kaggle kernels logs "$KERNEL_ID" 2>&1 || true)
             printf '%s\n' "$logs" > deploy/kaggle/kaggle-kernel.log
-            echo "$logs" | grep -q 'SMOKE=passed' && smoke="passed"
             url=$(echo "$logs" | grep -o 'TUNNEL_URL=[^ ]*' | head -1 | cut -d= -f2-)
-            if [ "$smoke" = "passed" ] && [ -n "$url" ]; then break; fi
+            if [ -n "$url" ]; then break; fi
             sleep 20
           done
           duration=$((SECONDS - start))
           ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-          if [ "$smoke" = "passed" ] && [ -n "$url" ]; then exit_code=0; else exit_code=1; fi
+          if [ -n "$url" ]; then exit_code=0; else exit_code=1; fi
           cat > deploy-report.md <<REPORT
           # BoldSearch Kaggle deploy report
 
@@ -84,7 +82,6 @@ jobs:
           | Pinned SHA | \`$PINNED_SHA\` |
           | Push | \`ok\` |
           | Kernel status | \`$status\` |
-          | Smoke | \`$smoke\` |
           | Public URL | \`${url:--}\` |
           | Duration | \`$(printf '%dm%02ds' $((duration / 60)) $((duration % 60)))\` |
           REPORT
